@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Admin — Live Roulette</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --panel2:#1e2530; --border:#2a313d; --text:#e8e9ed; --muted:#8a8fa3; --accent:#5b8cff; --green:#2ecc71; --red:#e64545; --gold:#ffc857; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); padding:24px; }
+  h1 { font-size:20px; }
+  a.back { color: var(--accent); text-decoration:none; font-size:13px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px; margin-top:18px; }
+  .panel h2 { font-size:14px; text-transform:uppercase; color:var(--muted); margin:0 0 14px; }
+  table { width:100%; border-collapse: collapse; font-size:13px; }
+  th, td { text-align:left; padding:7px 6px; border-bottom:1px solid var(--border); }
+  th { color: var(--muted); }
+  input[type=number] { background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 7px; font-size:13px; width:90px; }
+  button { cursor:pointer; border:none; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:600; background:var(--accent); color:white; }
+  .pos { color: var(--green); } .neg { color: var(--red); }
+  #denied { display:none; text-align:center; padding:60px; color:var(--red); }
+</style>
+</head>
+<body>
+<a class="back" href="/">&larr; Zurück zum Roulette</a>
+<h1>🛠️ Admin Panel</h1>
+<div id="denied">⛔ Kein Zugriff — du bist kein Admin.</div>
+<div id="content" style="display:none">
+  <div class="panel">
+    <h2>User & Coins</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Coins</th><th>Anpassen</th></tr></thead>
+      <tbody id="users-table"></tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h2>Transaktionslog (letzte 200)</h2>
+    <table>
+      <thead><tr><th>Zeit</th><th>Name</th><th>Betrag</th><th>Grund</th></tr></thead>
+      <tbody id="tx-table"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const me = JSON.parse(localStorage.getItem('roulette_user') || 'null');
+if (!me) window.location.href = '/';
+
+async function api(path, opts = {}) {
+  opts.headers = { ...(opts.headers||{}), 'Content-Type': 'application/json', 'x-user-id': me.id };
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+async function init() {
+  const users = await api('/api/admin/users');
+  if (users.error) { document.getElementById('denied').style.display = 'block'; return; }
+  document.getElementById('content').style.display = 'block';
+  renderUsers(users);
+  const txs = await api('/api/admin/transactions');
+  renderTx(txs);
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById('users-table');
+  tbody.innerHTML = '';
+  users.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${u.name}${u.isAdmin ? ' 👑' : ''}</td>
+      <td>${u.coins} 🪙</td>
+      <td><input type="number" placeholder="±Betrag" id="amt-${u.id}"> <button onclick="adjust('${u.id}')">Anwenden</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTx(txs) {
+  const tbody = document.getElementById('tx-table');
+  tbody.innerHTML = '';
+  txs.forEach(t => {
+    const tr = document.createElement('tr');
+    const cls = t.amount >= 0 ? 'pos' : 'neg';
+    tr.innerHTML = `<td>${new Date(t.ts).toLocaleString('de-DE')}</td><td>${t.name}</td><td class="${cls}">${t.amount > 0 ? '+' : ''}${t.amount}</td><td>${t.reason}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function adjust(userId) {
+  const input = document.getElementById('amt-' + userId);
+  const amount = parseInt(input.value, 10);
+  if (!amount) return;
+  await api('/api/admin/adjust-coins', { method: 'POST', body: JSON.stringify({ userId, amount, reason: 'Admin-Anpassung' }) });
+  input.value = '';
+  init();
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Live Roulette</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --panel2:#1e2530; --border:#2a313d;
+    --text:#e8e9ed; --muted:#8a8fa3; --accent:#5b8cff;
+    --green:#2ecc71; --red-c:#e64545; --black-c:#1c1f26; --gold:#ffc857;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); }
+
+  #login-screen { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:100; }
+  .login-box { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:36px 40px; width:320px; text-align:center; }
+  .login-box h1 { font-size:22px; margin-bottom:4px; }
+  .login-box p { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  input[type=text], input[type=number] { width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--panel2); color:var(--text); font-size:14px; margin-bottom:12px; }
+  button { cursor:pointer; border:none; border-radius:8px; font-size:14px; font-weight:600; padding:10px 16px; }
+  button:hover { opacity:.9; } button:active { transform:scale(.97); }
+  .btn-primary { background:var(--accent); color:white; width:100%; }
+
+  #app { display:none; }
+  #app.active { display:block; }
+  header { display:flex; align-items:center; justify-content:space-between; padding:14px 24px; background:var(--panel); border-bottom:1px solid var(--border); }
+  header .brand { font-weight:700; font-size:18px; }
+  .coins-badge { background:var(--panel2); border:1px solid var(--border); padding:6px 14px; border-radius:20px; color:var(--gold); font-weight:700; font-size:15px; }
+  header .right { display:flex; align-items:center; gap:14px; }
+  a.admin-link { color:var(--accent); text-decoration:none; font-size:13px; }
+
+  main { max-width: 900px; margin: 0 auto; padding: 24px; }
+
+  .status-bar { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:20px; }
+  .phase-pill { padding:6px 16px; border-radius:20px; font-size:13px; font-weight:700; }
+  .phase-pill.betting { background: #1e3a2e; color: var(--green); }
+  .phase-pill.spinning { background: #3a3320; color: var(--gold); }
+  .phase-pill.result { background: #2a2030; color: #c78cff; }
+  #countdown { font-size:28px; font-weight:800; color: var(--text); }
+
+  .wheel-wrap { display:flex; flex-direction:column; align-items:center; margin-bottom: 24px; }
+  #result-display {
+    width: 110px; height: 110px; border-radius: 50%; display:flex; align-items:center; justify-content:center;
+    font-size: 42px; font-weight: 800; border: 4px solid var(--border); transition: transform .3s;
+  }
+  #result-display.red { background: var(--red-c); }
+  #result-display.black { background: var(--black-c); }
+  #result-display.green { background: var(--green); color: #0d1117; }
+  #result-display.spinning-anim { animation: spin 0.4s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .table-grid { display:grid; grid-template-columns: repeat(12, 1fr); gap: 4px; margin-bottom: 18px; }
+  .num-cell {
+    aspect-ratio: 1; border-radius: 6px; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:14px; cursor:pointer; border: 2px solid transparent; position:relative;
+  }
+  .num-cell.red { background: var(--red-c); color:white; }
+  .num-cell.black { background: var(--black-c); color:white; }
+  .num-cell.green { background: var(--green); color:#0d1117; grid-column: span 12; aspect-ratio: auto; padding: 8px; }
+  .num-cell:hover { border-color: var(--accent); }
+  .num-cell .chip-total { position:absolute; bottom:2px; right:2px; font-size:9px; background:rgba(0,0,0,.5); padding:1px 4px; border-radius:6px; color: var(--gold); }
+
+  .outside-bets { display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 22px; }
+  .outside-btn {
+    background: var(--panel2); border: 2px solid var(--border); border-radius: 10px; padding: 12px;
+    color: var(--text); font-weight:700; font-size:14px; cursor:pointer; text-align:center; position:relative;
+  }
+  .outside-btn:hover { border-color: var(--accent); }
+  .outside-btn .chip-total { display:block; font-size:11px; color:var(--gold); margin-top:4px; font-weight:600; }
+
+  .bet-controls { display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom: 22px; flex-wrap: wrap; }
+  .chip-btn {
+    width: 54px; height: 54px; border-radius: 50%; border: 2px solid var(--border); background: var(--panel2);
+    color: var(--gold); font-weight:800; font-size:13px; cursor:pointer;
+  }
+  .chip-btn.selected { border-color: var(--gold); background: #332b14; }
+
+  .panel-box { background: var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:18px; }
+  .panel-box h3 { font-size:13px; text-transform:uppercase; color:var(--muted); margin:0 0 10px; }
+  .my-bets-list { font-size:13px; display:flex; flex-direction:column; gap:4px; }
+  .history-row { display:flex; gap:6px; flex-wrap:wrap; }
+  .history-chip { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+  .history-chip.red { background: var(--red-c); color:white; } .history-chip.black { background: var(--black-c); color:white; } .history-chip.green { background: var(--green); color:#0d1117; }
+
+  #error-toast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#3a1c1c; color:#ff8a8a;
+    border:1px solid #5a2a2a; padding:10px 18px; border-radius:8px; font-size:13px; display:none; z-index:50;
+  }
+
+  .online-list { font-size:13px; color:var(--muted); }
+  .online-list span.name { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🎡 Live Roulette</h1>
+    <p>Tritt der Runde bei und setze mit deinen Kollegen</p>
+    <input type="text" id="name-input" placeholder="Dein Name" maxlength="24" autofocus>
+    <button class="btn-primary" id="login-btn">Beitreten</button>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="brand">🎡 Live Roulette</div>
+    <div class="right">
+      <span class="coins-badge">🪙 <span id="me-coins">0</span></span>
+      <a class="admin-link" href="/admin.html" id="admin-link" style="display:none">🛠️ Admin</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="status-bar">
+      <span class="phase-pill" id="phase-pill">—</span>
+      <span id="countdown">--</span>
+    </div>
+
+    <div class="wheel-wrap">
+      <div id="result-display">?</div>
+    </div>
+
+    <div class="table-grid" id="number-grid"></div>
+
+    <div class="outside-bets">
+      <div class="outside-btn" data-type="red" style="border-color:var(--red-c)">🔴 Rot <span class="chip-total" id="ct-red"></span></div>
+      <div class="outside-btn" data-type="black" style="border-color:#444">⚫ Schwarz <span class="chip-total" id="ct-black"></span></div>
+      <div class="outside-btn" data-type="odd">Ungerade <span class="chip-total" id="ct-odd"></span></div>
+      <div class="outside-btn" data-type="even">Gerade <span class="chip-total" id="ct-even"></span></div>
+      <div class="outside-btn" data-type="low">1–18 <span class="chip-total" id="ct-low"></span></div>
+      <div class="outside-btn" data-type="high">19–36 <span class="chip-total" id="ct-high"></span></div>
+    </div>
+
+    <div class="bet-controls" id="chip-controls">
+      <span style="color:var(--muted); font-size:13px">Einsatz wählen:</span>
+      <button class="chip-btn" data-amount="10">10</button>
+      <button class="chip-btn selected" data-amount="25">25</button>
+      <button class="chip-btn" data-amount="50">50</button>
+      <button class="chip-btn" data-amount="100">100</button>
+      <button class="chip-btn" data-amount="250">250</button>
+    </div>
+
+    <div class="panel-box">
+      <h3>Meine Einsätze (diese Runde)</h3>
+      <div class="my-bets-list" id="my-bets">Noch keine Einsätze.</div>
+    </div>
+
+    <div class="panel-box">
+      <h3>Letzte Ergebnisse</h3>
+      <div class="history-row" id="history-row"></div>
+    </div>
+
+    <div class="panel-box">
+      <h3>Online (<span id="user-count">0</span>)</h3>
+      <div class="online-list" id="online-list"></div>
+    </div>
+  </main>
+</div>
+
+<div id="error-toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+let me = JSON.parse(localStorage.getItem('roulette_user') || 'null');
+let socket;
+let selectedAmount = 25;
+let currentState = null;
+let countdownTimer = null;
+
+const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+
+function numberColor(n) {
+  if (n === 0) return 'green';
+  return RED_NUMBERS.has(n) ? 'red' : 'black';
+}
+
+const loginScreen = document.getElementById('login-screen');
+const appEl = document.getElementById('app');
+
+document.getElementById('login-btn').onclick = doLogin;
+document.getElementById('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const name = document.getElementById('name-input').value.trim();
+  if (!name) return;
+  const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
+  const data = await res.json();
+  if (data.error) return alert(data.error);
+  me = data.user;
+  localStorage.setItem('roulette_user', JSON.stringify(me));
+  showApp();
+}
+
+if (me) showApp();
+
+function showApp() {
+  loginScreen.style.display = 'none';
+  appEl.classList.add('active');
+  document.getElementById('me-coins').textContent = me.coins;
+  if (me.isAdmin) document.getElementById('admin-link').style.display = 'inline';
+  buildNumberGrid();
+  connectSocket();
+}
+
+function buildNumberGrid() {
+  const grid = document.getElementById('number-grid');
+  grid.innerHTML = '';
+  const zero = document.createElement('div');
+  zero.className = 'num-cell green';
+  zero.dataset.type = 'number'; zero.dataset.value = '0';
+  zero.innerHTML = `0 <span class="chip-total" id="ct-num-0"></span>`;
+  grid.appendChild(zero);
+  for (let n = 1; n <= 36; n++) {
+    const cell = document.createElement('div');
+    cell.className = 'num-cell ' + numberColor(n);
+    cell.dataset.type = 'number'; cell.dataset.value = n;
+    cell.innerHTML = `${n}<span class="chip-total" id="ct-num-${n}"></span>`;
+    grid.appendChild(cell);
+  }
+  grid.querySelectorAll('.num-cell').forEach(cell => {
+    cell.onclick = () => placeBet('number', cell.dataset.value);
+  });
+}
+
+document.querySelectorAll('.outside-btn').forEach(btn => {
+  btn.onclick = () => placeBet(btn.dataset.type, btn.dataset.type);
+});
+
+document.querySelectorAll('.chip-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedAmount = parseInt(btn.dataset.amount, 10);
+  };
+});
+
+function placeBet(type, value) {
+  if (!currentState || currentState.phase !== 'betting') {
+    showError('Wetten ist gerade nicht möglich.');
+    return;
+  }
+  socket.emit('roulette:bet', { type, value, amount: selectedAmount });
+}
+
+function showError(msg) {
+  const toast = document.getElementById('error-toast');
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  setTimeout(() => toast.style.display = 'none', 2500);
+}
+
+function connectSocket() {
+  socket = io();
+  socket.on('connect', () => socket.emit('identify', me.id));
+  socket.on('roulette:state', renderState);
+  socket.on('roulette:myBets', renderMyBets);
+  socket.on('roulette:history', renderHistory);
+  socket.on('roulette:coins', c => {
+    me.coins = c;
+    document.getElementById('me-coins').textContent = c;
+    localStorage.setItem('roulette_user', JSON.stringify(me));
+  });
+  socket.on('roulette:error', showError);
+  socket.on('users:update', renderUsers);
+}
+
+function renderUsers(users) {
+  document.getElementById('user-count').textContent = users.filter(u => u.online).length;
+  const list = document.getElementById('online-list');
+  list.innerHTML = users.filter(u => u.online).map(u => `<span class="name">${escapeHtml(u.name)}</span>`).join(', ') || 'Niemand online';
+  const myUpdate = users.find(u => u.id === me.id);
+  if (myUpdate) {
+    me.coins = myUpdate.coins;
+    document.getElementById('me-coins').textContent = myUpdate.coins;
+  }
+}
+
+function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderState(state) {
+  const wasResultJustIn = currentState && currentState.phase !== 'result' && state.phase === 'result';
+  currentState = state;
+
+  const pill = document.getElementById('phase-pill');
+  pill.className = 'phase-pill ' + state.phase;
+  pill.textContent = { betting: '🎲 Setzen offen', spinning: '🌀 Kugel rollt...', result: '✅ Ergebnis' }[state.phase];
+
+  const display = document.getElementById('result-display');
+  if (state.phase === 'spinning') {
+    display.className = 'spinning-anim';
+    display.textContent = '?';
+  } else if (state.result_number !== null) {
+    display.className = state.result_color;
+    display.textContent = state.result_number;
+  } else {
+    display.className = '';
+    display.textContent = '?';
+  }
+
+  // Chip-Totals zurücksetzen
+  document.querySelectorAll('.chip-total').forEach(el => el.textContent = '');
+  for (const [key, amount] of Object.entries(state.bet_totals || {})) {
+    const [type, value] = key.split(':');
+    let el;
+    if (type === 'number') el = document.getElementById('ct-num-' + value);
+    else el = document.getElementById('ct-' + type);
+    if (el) el.textContent = amount + ' 🪙';
+  }
+
+  if (state.phase === 'betting') {
+    document.getElementById('my-bets').innerHTML === '' ;
+  }
+
+  startCountdown(state.ends_at);
+
+  if (wasResultJustIn) {
+    // kleine Verzögerung damit Server die history aktualisieren konnte
+    setTimeout(() => socket.emit('identify', me.id), 300);
+  }
+  if (state.phase === 'betting') {
+    document.getElementById('my-bets').innerHTML = 'Noch keine Einsätze.';
+  }
+}
+
+function startCountdown(endsAt) {
+  if (countdownTimer) clearInterval(countdownTimer);
+  function tick() {
+    const remaining = Math.max(0, Math.ceil(endsAt - Date.now() / 1000));
+    document.getElementById('countdown').textContent = remaining + 's';
+    if (remaining <= 0) clearInterval(countdownTimer);
+  }
+  tick();
+  countdownTimer = setInterval(tick, 250);
+}
+
+function renderMyBets(bets) {
+  const box = document.getElementById('my-bets');
+  if (!bets || bets.length === 0) { box.innerHTML = 'Noch keine Einsätze.'; return; }
+  const labelMap = { red: '🔴 Rot', black: '⚫ Schwarz', odd: 'Ungerade', even: 'Gerade', low: '1–18', high: '19–36' };
+  box.innerHTML = bets.map(b => {
+    const label = b.type === 'number' ? `Zahl ${b.value}` : labelMap[b.type];
+    return `<div>${label} — ${b.amount} 🪙</div>`;
+  }).join('');
+}
+
+function renderHistory(history) {
+  const row = document.getElementById('history-row');
+  row.innerHTML = history.slice().reverse().map(h =>
+    `<div class="history-chip ${h.color}">${h.number}</div>`
+  ).join('');
+}
+</script>
+</body>
+</html>
