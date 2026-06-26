@@ -30,25 +30,69 @@
   header .right { display:flex; align-items:center; gap:14px; }
   a.admin-link { color:var(--accent); text-decoration:none; font-size:13px; }
 
-  main { max-width: 900px; margin: 0 auto; padding: 24px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; display:grid; grid-template-columns: minmax(0,1fr) 320px; gap: 20px; align-items:start; }
+  .table-col { min-width:0; }
+  .side-col { display:flex; flex-direction:column; gap:18px; }
 
-  .status-bar { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:20px; }
+  .status-bar { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:16px; }
   .phase-pill { padding:6px 16px; border-radius:20px; font-size:13px; font-weight:700; }
   .phase-pill.betting { background: #1e3a2e; color: var(--green); }
   .phase-pill.spinning { background: #3a3320; color: var(--gold); }
   .phase-pill.result { background: #2a2030; color: #c78cff; }
   #countdown { font-size:28px; font-weight:800; color: var(--text); }
 
-  .wheel-wrap { display:flex; flex-direction:column; align-items:center; margin-bottom: 24px; }
-  #result-display {
-    width: 110px; height: 110px; border-radius: 50%; display:flex; align-items:center; justify-content:center;
-    font-size: 42px; font-weight: 800; border: 4px solid var(--border); transition: transform .3s;
+  /* ===== 3D WHEEL ===== */
+  .wheel-3d-wrap { display:flex; flex-direction:column; align-items:center; margin-bottom: 20px; }
+  .wheel-perspective {
+    width: 280px; height: 280px; perspective: 900px; position: relative;
+    display:flex; align-items:center; justify-content:center;
   }
-  #result-display.red { background: var(--red-c); }
-  #result-display.black { background: var(--black-c); }
-  #result-display.green { background: var(--green); color: #0d1117; }
-  #result-display.spinning-anim { animation: spin 0.4s linear infinite; }
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .wheel-disc {
+    width: 260px; height: 260px; border-radius: 50%; position: relative;
+    transform-style: preserve-3d; transform: rotateX(58deg) rotateZ(0deg);
+    box-shadow: 0 30px 50px -10px rgba(0,0,0,.7), inset 0 0 0 6px #0a0c10, inset 0 0 0 10px #3a2f1a;
+    background:
+      radial-gradient(circle at 50% 50%, #2a2010 0%, #1a140a 55%, #0d0a06 100%);
+    transition: transform 2.6s cubic-bezier(.12,.7,.1,1.0);
+  }
+  .wheel-disc.idle-spin { animation: idleSpin 26s linear infinite; transition: none; }
+  @keyframes idleSpin { from { transform: rotateX(58deg) rotateZ(0deg); } to { transform: rotateX(58deg) rotateZ(360deg); } }
+
+  .pocket {
+    position: absolute; top: 50%; left: 50%; width: 26px; height: 26px;
+    margin: -13px; border-radius: 4px; font-size: 10px; font-weight: 800;
+    display:flex; align-items:center; justify-content:center; color: white;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+  }
+  .pocket.red { background: var(--red-c); }
+  .pocket.black { background: #2b2f38; }
+  .pocket.green { background: var(--green); color:#0d1117; }
+
+  .wheel-hub {
+    position:absolute; top:50%; left:50%; width:70px; height:70px; margin:-35px;
+    border-radius:50%; background: radial-gradient(circle at 35% 30%, #4a3a1c, #1a140a 70%);
+    box-shadow: 0 0 0 4px #0a0c10, 0 6px 14px rgba(0,0,0,.6);
+    display:flex; align-items:center; justify-content:center;
+    transform: translateZ(10px) rotateX(0deg);
+  }
+  #hub-number {
+    font-size: 26px; font-weight: 800; color: var(--gold); transform: rotateX(-58deg);
+  }
+  #hub-number.red { color: var(--red-c); } #hub-number.black { color: #ccc; } #hub-number.green { color: var(--green); }
+
+  .wheel-ball {
+    position: absolute; top: 50%; left: 50%; width: 12px; height: 12px; margin: -6px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffffff, #c9c9c9 60%, #888 100%);
+    box-shadow: 0 2px 5px rgba(0,0,0,.7);
+    transform: rotate(0deg) translate(150px) rotate(0deg);
+    opacity: 0;
+  }
+  .wheel-pointer {
+    position:absolute; top:-6px; left:50%; transform: translateX(-50%);
+    width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent;
+    border-top: 14px solid var(--gold); filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); z-index: 5;
+  }
 
   .table-grid { display:grid; grid-template-columns: repeat(12, 1fr); gap: 4px; margin-bottom: 18px; }
   .num-cell {
@@ -90,6 +134,46 @@
 
   .online-list { font-size:13px; color:var(--muted); }
   .online-list span.name { color: var(--text); }
+
+  /* ===== CHAT ===== */
+  .chat-panel { padding:0; overflow:hidden; display:flex; flex-direction:column; height: 460px; }
+  .chat-tabs { display:flex; border-bottom:1px solid var(--border); }
+  .chat-tab {
+    flex:1; background:var(--panel); color:var(--muted); border-radius:0; padding:12px 8px; font-size:13px;
+    border-bottom: 2px solid transparent;
+  }
+  .chat-tab.active { color: var(--text); border-bottom-color: var(--accent); background: var(--panel2); }
+  .chat-body { flex:1; display:flex; flex-direction:column; min-height:0; padding:12px; }
+  .chat-messages { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; margin-bottom:10px; padding-right:2px; }
+  .chat-msg { max-width: 85%; font-size:13px; line-height:1.3; }
+  .chat-msg .meta { font-size:10px; color:var(--muted); margin-bottom:2px; }
+  .chat-msg .bubble { background: var(--panel2); border:1px solid var(--border); border-radius:10px; padding:7px 10px; display:inline-block; word-break:break-word; }
+  .chat-msg.me { align-self:flex-end; text-align:right; }
+  .chat-msg.me .bubble { background: #243250; border-color:#34466e; }
+  .chat-input-row { display:flex; gap:6px; }
+  .chat-input-row input { margin-bottom:0; flex:1; }
+  .chat-input-row button { background: var(--accent); color:white; padding:9px 12px; }
+
+  #player-search { margin-bottom:8px; }
+  .player-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
+  .player-row {
+    display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:8px;
+    background: var(--panel2); border:1px solid var(--border); cursor:pointer; font-size:13px;
+  }
+  .player-row:hover { border-color: var(--accent); }
+  .player-row .dot { width:8px; height:8px; border-radius:50%; background:#444; display:inline-block; margin-right:7px; }
+  .player-row .dot.on { background: var(--green); }
+  .player-row .coins { color: var(--gold); font-size:11px; }
+
+  .private-thread { flex:1; display:flex; flex-direction:column; min-height:0; }
+  .private-thread-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .private-thread-header button { background: var(--panel2); border:1px solid var(--border); color: var(--text); padding:5px 9px; }
+  .private-thread-header strong { font-size:13px; }
+
+  @media (max-width: 880px) {
+    main { grid-template-columns: 1fr; }
+    .chat-panel { height: 380px; }
+  }
 </style>
 </head>
 <body>
@@ -113,48 +197,91 @@
   </header>
 
   <main>
-    <div class="status-bar">
-      <span class="phase-pill" id="phase-pill">—</span>
-      <span id="countdown">--</span>
+    <div class="table-col">
+      <div class="status-bar">
+        <span class="phase-pill" id="phase-pill">—</span>
+        <span id="countdown">--</span>
+      </div>
+
+      <div class="wheel-3d-wrap">
+        <div class="wheel-perspective">
+          <div class="wheel-disc idle-spin" id="wheel-disc">
+            <div class="wheel-pointer"></div>
+            <div class="wheel-hub"><span id="hub-number">?</span></div>
+            <div class="wheel-ball" id="wheel-ball"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-grid" id="number-grid"></div>
+
+      <div class="outside-bets">
+        <div class="outside-btn" data-type="red" style="border-color:var(--red-c)">🔴 Rot <span class="chip-total" id="ct-red"></span></div>
+        <div class="outside-btn" data-type="black" style="border-color:#444">⚫ Schwarz <span class="chip-total" id="ct-black"></span></div>
+        <div class="outside-btn" data-type="odd">Ungerade <span class="chip-total" id="ct-odd"></span></div>
+        <div class="outside-btn" data-type="even">Gerade <span class="chip-total" id="ct-even"></span></div>
+        <div class="outside-btn" data-type="low">1–18 <span class="chip-total" id="ct-low"></span></div>
+        <div class="outside-btn" data-type="high">19–36 <span class="chip-total" id="ct-high"></span></div>
+      </div>
+
+      <div class="bet-controls" id="chip-controls">
+        <span style="color:var(--muted); font-size:13px">Einsatz wählen:</span>
+        <button class="chip-btn" data-amount="10">10</button>
+        <button class="chip-btn selected" data-amount="25">25</button>
+        <button class="chip-btn" data-amount="50">50</button>
+        <button class="chip-btn" data-amount="100">100</button>
+        <button class="chip-btn" data-amount="250">250</button>
+      </div>
+
+      <div class="panel-box">
+        <h3>Meine Einsätze (diese Runde)</h3>
+        <div class="my-bets-list" id="my-bets">Noch keine Einsätze.</div>
+      </div>
+
+      <div class="panel-box">
+        <h3>Letzte Ergebnisse</h3>
+        <div class="history-row" id="history-row"></div>
+      </div>
     </div>
 
-    <div class="wheel-wrap">
-      <div id="result-display">?</div>
-    </div>
+    <div class="side-col">
+      <div class="panel-box chat-panel">
+        <div class="chat-tabs">
+          <button class="chat-tab active" data-tab="global" id="tab-global">🌐 Global</button>
+          <button class="chat-tab" data-tab="private" id="tab-private">💬 Privat</button>
+        </div>
 
-    <div class="table-grid" id="number-grid"></div>
+        <div class="chat-body" id="chat-global-view">
+          <div class="chat-messages" id="global-messages"></div>
+          <div class="chat-input-row">
+            <input type="text" id="global-chat-input" placeholder="Nachricht an alle..." maxlength="500">
+            <button id="global-chat-send">➤</button>
+          </div>
+        </div>
 
-    <div class="outside-bets">
-      <div class="outside-btn" data-type="red" style="border-color:var(--red-c)">🔴 Rot <span class="chip-total" id="ct-red"></span></div>
-      <div class="outside-btn" data-type="black" style="border-color:#444">⚫ Schwarz <span class="chip-total" id="ct-black"></span></div>
-      <div class="outside-btn" data-type="odd">Ungerade <span class="chip-total" id="ct-odd"></span></div>
-      <div class="outside-btn" data-type="even">Gerade <span class="chip-total" id="ct-even"></span></div>
-      <div class="outside-btn" data-type="low">1–18 <span class="chip-total" id="ct-low"></span></div>
-      <div class="outside-btn" data-type="high">19–36 <span class="chip-total" id="ct-high"></span></div>
-    </div>
+        <div class="chat-body" id="chat-private-view" style="display:none">
+          <div id="private-list-view" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+            <input type="text" id="player-search" placeholder="🔍 Spieler suchen...">
+            <div class="player-list" id="player-list"></div>
+          </div>
+          <div class="private-thread" id="private-thread-view" style="display:none">
+            <div class="private-thread-header">
+              <button id="back-to-list">←</button>
+              <strong id="private-thread-name">—</strong>
+            </div>
+            <div class="chat-messages" id="private-messages"></div>
+            <div class="chat-input-row">
+              <input type="text" id="private-chat-input" placeholder="Private Nachricht..." maxlength="500">
+              <button id="private-chat-send">➤</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    <div class="bet-controls" id="chip-controls">
-      <span style="color:var(--muted); font-size:13px">Einsatz wählen:</span>
-      <button class="chip-btn" data-amount="10">10</button>
-      <button class="chip-btn selected" data-amount="25">25</button>
-      <button class="chip-btn" data-amount="50">50</button>
-      <button class="chip-btn" data-amount="100">100</button>
-      <button class="chip-btn" data-amount="250">250</button>
-    </div>
-
-    <div class="panel-box">
-      <h3>Meine Einsätze (diese Runde)</h3>
-      <div class="my-bets-list" id="my-bets">Noch keine Einsätze.</div>
-    </div>
-
-    <div class="panel-box">
-      <h3>Letzte Ergebnisse</h3>
-      <div class="history-row" id="history-row"></div>
-    </div>
-
-    <div class="panel-box">
-      <h3>Online (<span id="user-count">0</span>)</h3>
-      <div class="online-list" id="online-list"></div>
+      <div class="panel-box">
+        <h3>Online (<span id="user-count">0</span>)</h3>
+        <div class="online-list" id="online-list"></div>
+      </div>
     </div>
   </main>
 </div>
@@ -168,8 +295,12 @@ let socket;
 let selectedAmount = 25;
 let currentState = null;
 let countdownTimer = null;
+let allUsers = [];
+let currentPrivateWith = null; // {id, name}
 
 const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+// Reihenfolge der Zahlen am europäischen Roulette-Kessel (für die 3D-Animation)
+const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
 
 function numberColor(n) {
   if (n === 0) return 'green';
@@ -201,7 +332,9 @@ function showApp() {
   document.getElementById('me-coins').textContent = me.coins;
   if (me.isAdmin) document.getElementById('admin-link').style.display = 'inline';
   buildNumberGrid();
+  buildWheelPockets();
   connectSocket();
+  setupChatUI();
 }
 
 function buildNumberGrid() {
@@ -253,7 +386,10 @@ function showError(msg) {
 
 function connectSocket() {
   socket = io();
-  socket.on('connect', () => socket.emit('identify', me.id));
+  socket.on('connect', () => {
+    socket.emit('identify', me.id);
+    socket.emit('chat:history', { type: 'global' });
+  });
   socket.on('roulette:state', renderState);
   socket.on('roulette:myBets', renderMyBets);
   socket.on('roulette:history', renderHistory);
@@ -264,9 +400,39 @@ function connectSocket() {
   });
   socket.on('roulette:error', showError);
   socket.on('users:update', renderUsers);
+
+  socket.on('chat:globalHistory', msgs => {
+    const box = document.getElementById('global-messages');
+    box.innerHTML = '';
+    msgs.forEach(m => appendChatMessage(box, { name: m.name, userId: m.userId, text: m.text, ts: m.ts }));
+    box.scrollTop = box.scrollHeight;
+  });
+  socket.on('chat:global', m => {
+    const box = document.getElementById('global-messages');
+    appendChatMessage(box, { name: m.name, userId: m.userId, text: m.text, ts: m.ts });
+    box.scrollTop = box.scrollHeight;
+  });
+
+  socket.on('chat:privateHistory', data => {
+    if (!currentPrivateWith || data.with !== currentPrivateWith.id) return;
+    const box = document.getElementById('private-messages');
+    box.innerHTML = '';
+    data.messages.forEach(m => appendChatMessage(box, { name: m.fromName, userId: m.from, text: m.text, ts: m.ts }));
+    box.scrollTop = box.scrollHeight;
+  });
+  socket.on('chat:private', m => {
+    if (currentPrivateWith && (m.from === currentPrivateWith.id || m.to === currentPrivateWith.id)) {
+      const box = document.getElementById('private-messages');
+      appendChatMessage(box, { name: m.fromName, userId: m.from, text: m.text, ts: m.ts });
+      box.scrollTop = box.scrollHeight;
+    } else if (m.from !== me.id) {
+      showError(`💬 Neue private Nachricht von ${m.fromName}`);
+    }
+  });
 }
 
 function renderUsers(users) {
+  allUsers = users;
   document.getElementById('user-count').textContent = users.filter(u => u.online).length;
   const list = document.getElementById('online-list');
   list.innerHTML = users.filter(u => u.online).map(u => `<span class="name">${escapeHtml(u.name)}</span>`).join(', ') || 'Niemand online';
@@ -275,28 +441,94 @@ function renderUsers(users) {
     me.coins = myUpdate.coins;
     document.getElementById('me-coins').textContent = myUpdate.coins;
   }
+  renderPlayerList();
 }
 
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+/* ============ 3D WHEEL ============ */
+
+function buildWheelPockets() {
+  const disc = document.getElementById('wheel-disc');
+  const radius = 108;
+  WHEEL_ORDER.forEach((num, i) => {
+    const angle = i * (360 / WHEEL_ORDER.length);
+    const pocket = document.createElement('div');
+    pocket.className = 'pocket ' + numberColor(num);
+    pocket.textContent = num;
+    pocket.style.transform = `rotate(${angle}deg) translate(${radius}px) rotate(${-angle}deg)`;
+    disc.appendChild(pocket);
+  });
+}
+
+function angleForNumber(num) {
+  const idx = WHEEL_ORDER.indexOf(num);
+  return idx * (360 / WHEEL_ORDER.length);
+}
+
+function spinBallToNumber(num) {
+  const disc = document.getElementById('wheel-disc');
+  const ball = document.getElementById('wheel-ball');
+  const hub = document.getElementById('hub-number');
+
+  disc.classList.remove('idle-spin');
+  disc.style.transform = 'rotateX(58deg) rotateZ(0deg)';
+
+  hub.textContent = '?';
+  hub.className = '';
+
+  const targetAngle = angleForNumber(num);
+  const startAngle = targetAngle - 360 * 5; // 5 Runden, bevor die Kugel landet
+  const outerRadius = 150;
+  const innerRadius = 96;
+  const durationMs = SPIN_SECONDS_CLIENT * 1000;
+  const startTime = performance.now();
+
+  ball.style.opacity = '1';
+
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function frame(now) {
+    const t = Math.min(1, (now - startTime) / durationMs);
+    const eased = easeOutCubic(t);
+    const angle = startAngle + (targetAngle - startAngle) * eased;
+    const radius = outerRadius + (innerRadius - outerRadius) * eased;
+    ball.style.transform = `rotate(${angle}deg) translate(${radius}px) rotate(${-angle}deg)`;
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      hub.textContent = num;
+      hub.className = numberColor(num);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function resetWheelIdle() {
+  const disc = document.getElementById('wheel-disc');
+  const ball = document.getElementById('wheel-ball');
+  ball.style.opacity = '0';
+  disc.classList.add('idle-spin');
+}
+
+let SPIN_SECONDS_CLIENT = 3;
+
 function renderState(state) {
   const wasResultJustIn = currentState && currentState.phase !== 'result' && state.phase === 'result';
+  const enteringSpin = (!currentState || currentState.phase !== 'spinning') && state.phase === 'spinning';
+  const enteringBetting = (!currentState || currentState.phase !== 'betting') && state.phase === 'betting';
   currentState = state;
 
   const pill = document.getElementById('phase-pill');
   pill.className = 'phase-pill ' + state.phase;
   pill.textContent = { betting: '🎲 Setzen offen', spinning: '🌀 Kugel rollt...', result: '✅ Ergebnis' }[state.phase];
 
-  const display = document.getElementById('result-display');
-  if (state.phase === 'spinning') {
-    display.className = 'spinning-anim';
-    display.textContent = '?';
-  } else if (state.result_number !== null) {
-    display.className = state.result_color;
-    display.textContent = state.result_number;
-  } else {
-    display.className = '';
-    display.textContent = '?';
+  if (enteringSpin && state.result_number !== null) {
+    SPIN_SECONDS_CLIENT = Math.max(1, state.ends_at - (Date.now() / 1000) + 0.1);
+    spinBallToNumber(state.result_number);
+  }
+  if (enteringBetting) {
+    resetWheelIdle();
   }
 
   // Chip-Totals zurücksetzen
@@ -307,10 +539,6 @@ function renderState(state) {
     if (type === 'number') el = document.getElementById('ct-num-' + value);
     else el = document.getElementById('ct-' + type);
     if (el) el.textContent = amount + ' 🪙';
-  }
-
-  if (state.phase === 'betting') {
-    document.getElementById('my-bets').innerHTML === '' ;
   }
 
   startCountdown(state.ends_at);
@@ -350,6 +578,90 @@ function renderHistory(history) {
   row.innerHTML = history.slice().reverse().map(h =>
     `<div class="history-chip ${h.color}">${h.number}</div>`
   ).join('');
+}
+
+/* ============ CHAT ============ */
+
+function setupChatUI() {
+  document.getElementById('tab-global').onclick = () => switchChatTab('global');
+  document.getElementById('tab-private').onclick = () => switchChatTab('private');
+
+  document.getElementById('global-chat-send').onclick = sendGlobalMessage;
+  document.getElementById('global-chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendGlobalMessage(); });
+
+  document.getElementById('player-search').addEventListener('input', renderPlayerList);
+  document.getElementById('back-to-list').onclick = () => {
+    currentPrivateWith = null;
+    document.getElementById('private-thread-view').style.display = 'none';
+    document.getElementById('private-list-view').style.display = 'flex';
+  };
+
+  document.getElementById('private-chat-send').onclick = sendPrivateMessage;
+  document.getElementById('private-chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendPrivateMessage(); });
+}
+
+function switchChatTab(tab) {
+  document.getElementById('tab-global').classList.toggle('active', tab === 'global');
+  document.getElementById('tab-private').classList.toggle('active', tab === 'private');
+  document.getElementById('chat-global-view').style.display = tab === 'global' ? 'flex' : 'none';
+  document.getElementById('chat-private-view').style.display = tab === 'private' ? 'flex' : 'none';
+}
+
+function sendGlobalMessage() {
+  const input = document.getElementById('global-chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('chat:sendGlobal', { text });
+  input.value = '';
+}
+
+function renderPlayerList() {
+  const search = (document.getElementById('player-search').value || '').toLowerCase();
+  const list = document.getElementById('player-list');
+  const others = allUsers.filter(u => u.id !== me.id && u.name.toLowerCase().includes(search));
+  if (others.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted); font-size:12px; padding:8px;">Keine Spieler gefunden.</div>';
+    return;
+  }
+  list.innerHTML = others.map(u => `
+    <div class="player-row" data-id="${u.id}" data-name="${escapeHtml(u.name)}">
+      <span><span class="dot ${u.online ? 'on' : ''}"></span>${escapeHtml(u.name)}${u.isAdmin ? ' 👑' : ''}</span>
+      <span class="coins">${u.coins} 🪙</span>
+    </div>
+  `).join('');
+  list.querySelectorAll('.player-row').forEach(row => {
+    row.onclick = () => openPrivateChat(row.dataset.id, row.dataset.name);
+  });
+}
+
+function openPrivateChat(userId, userName) {
+  currentPrivateWith = { id: userId, name: userName };
+  document.getElementById('private-thread-name').textContent = userName;
+  document.getElementById('private-list-view').style.display = 'none';
+  document.getElementById('private-thread-view').style.display = 'flex';
+  document.getElementById('private-messages').innerHTML = '';
+  socket.emit('chat:history', { type: 'private', with: userId });
+}
+
+function sendPrivateMessage() {
+  if (!currentPrivateWith) return;
+  const input = document.getElementById('private-chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('chat:sendPrivate', { to: currentPrivateWith.id, text });
+  input.value = '';
+}
+
+function appendChatMessage(container, msg) {
+  const isMe = msg.userId === me.id;
+  const div = document.createElement('div');
+  div.className = 'chat-msg' + (isMe ? ' me' : '');
+  const time = new Date(msg.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  div.innerHTML = `
+    <div class="meta">${isMe ? 'Du' : escapeHtml(msg.name)} · ${time}</div>
+    <div class="bubble">${escapeHtml(msg.text)}</div>
+  `;
+  container.appendChild(div);
 }
 </script>
 </body>

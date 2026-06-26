@@ -20,12 +20,18 @@ RESULT_SECONDS = 5
 
 RED_NUMBERS = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
 
+MAX_CHAT_LEN = 500
+MAX_GLOBAL_HISTORY = 200
+MAX_PRIVATE_HISTORY = 200
+
 db_lock = Lock()
 
 DEFAULT_DB = {
     "users": [],
     "transactions": [],
     "round_history": [],  # letzte Ergebnisse {number, color, ts}
+    "global_chat": [],
+    "private_chats": {},  # key "id1_id2" (sortiert) -> [messages]
 }
 
 
@@ -34,7 +40,11 @@ def load_db():
         save_db(DEFAULT_DB)
         return json.loads(json.dumps(DEFAULT_DB))
     with open(DB_PATH, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        db = json.load(f)
+    # Migration für ältere db.json-Dateien ohne Chat-Felder
+    db.setdefault('global_chat', [])
+    db.setdefault('private_chats', {})
+    return db
 
 
 def save_db(data):
@@ -65,6 +75,10 @@ def add_transaction(db, user_id, name, amount, reason):
     return tx
 
 
+def private_chat_key(id_a, id_b):
+    return '_'.join(sorted([id_a, id_b]))
+
+
 def number_color(n):
     if n == 0:
         return "green"
@@ -77,6 +91,11 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # sid -> {"userId":..., "name":...}
 online = {}
+
+
+def sids_for_user(user_id):
+    return [sid for sid, v in online.items() if v['userId'] == user_id]
+
 
 # ============ ROULETTE STATE (im Speicher) ============
 roulette = {
@@ -161,7 +180,7 @@ def my_bets_payload(user_id):
         return roulette['bets'].get(user_id, [])
 
 
-# ============ SOCKET.IO ============
+# ============ SOCKET.IO — ROULETTE ============
 
 @socketio.on('identify')
 def on_identify(user_id):
@@ -240,6 +259,85 @@ def on_bet(data):
 def on_disconnect():
     online.pop(request.sid, None)
     broadcast_users()
+
+
+# ============ SOCKET.IO — CHAT ============
+
+@socketio.on('chat:sendGlobal')
+def on_chat_global(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    text = ((data or {}).get('text') or '').strip()
+    if not text or len(text) > MAX_CHAT_LEN:
+        return
+    msg = {
+        "id": uuid.uuid4().hex[:8],
+        "userId": me['userId'],
+        "name": me['name'],
+        "text": text,
+        "ts": int(time.time() * 1000),
+    }
+    with db_lock:
+        db = load_db()
+        db['global_chat'].append(msg)
+        db['global_chat'] = db['global_chat'][-MAX_GLOBAL_HISTORY:]
+        save_db(db)
+    socketio.emit('chat:global', msg, room='global')
+
+
+@socketio.on('chat:sendPrivate')
+def on_chat_private(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    to_id = (data or {}).get('to')
+    text = ((data or {}).get('text') or '').strip()
+    if not to_id or not text or len(text) > MAX_CHAT_LEN or to_id == me['userId']:
+        return
+
+    with db_lock:
+        db = load_db()
+        target_user = get_user(db, to_id)
+        if not target_user:
+            return
+        msg = {
+            "id": uuid.uuid4().hex[:8],
+            "from": me['userId'],
+            "fromName": me['name'],
+            "to": to_id,
+            "toName": target_user['name'],
+            "text": text,
+            "ts": int(time.time() * 1000),
+        }
+        key = private_chat_key(me['userId'], to_id)
+        db['private_chats'].setdefault(key, []).append(msg)
+        db['private_chats'][key] = db['private_chats'][key][-MAX_PRIVATE_HISTORY:]
+        save_db(db)
+
+    for sid in sids_for_user(me['userId']) + sids_for_user(to_id):
+        socketio.emit('chat:private', msg, room=sid)
+
+
+@socketio.on('chat:history')
+def on_chat_history(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    kind = (data or {}).get('type')
+    with db_lock:
+        db = load_db()
+        if kind == 'global':
+            emit('chat:globalHistory', db['global_chat'][-MAX_GLOBAL_HISTORY:])
+        elif kind == 'private':
+            other_id = (data or {}).get('with')
+            if not other_id:
+                return
+            key = private_chat_key(me['userId'], other_id)
+            emit('chat:privateHistory', {
+                "with": other_id,
+                "messages": db['private_chats'].get(key, []),
+            })
 
 
 # ============ ROULETTE GAME LOOP ============
