@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard — Live Millionaires</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --panel2:#1e2530; --border:#2a313d;
+    --text:#e8e9ed; --muted:#8a8fa3; --accent:#5b8cff;
+    --green:#2ecc71; --red-c:#e64545; --gold:#ffc857;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); }
+  header { display:flex; align-items:center; justify-content:space-between; padding:14px 24px; background:var(--panel); border-bottom:1px solid var(--border); flex-wrap:wrap; gap:10px; }
+  header .brand { font-weight:700; font-size:18px; }
+  header .links { display:flex; gap:14px; align-items:center; }
+  header a { color:var(--accent); text-decoration:none; font-size:13px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+  .stat-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-bottom:22px; }
+  .stat-card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; text-align:center; }
+  .stat-card .val { font-size:24px; font-weight:800; color:var(--gold); }
+  .stat-card .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; margin-top:4px; }
+
+  .panel-box { background: var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:20px; }
+  .panel-box h2 { font-size:14px; text-transform:uppercase; color:var(--muted); margin:0 0 14px; }
+
+  #chart-wrap { width:100%; overflow-x:auto; }
+  #chart-svg { width:100%; min-width:500px; height:220px; }
+
+  table { width:100%; border-collapse: collapse; font-size:13px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--border); }
+  th { color: var(--muted); font-size:11px; text-transform:uppercase; }
+  .rank { font-weight:800; width:34px; }
+  .rank.r1 { color:#ffd700; } .rank.r2 { color:#c0c0c0; } .rank.r3 { color:#cd7f32; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#444; display:inline-block; margin-right:7px; }
+  .dot.on { background: var(--green); }
+  .coins-cell { color: var(--gold); font-weight:700; }
+  .crown { margin-left:5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">💎 Live Millionaires — Dashboard</div>
+  <div class="links">
+    <a href="/">🎡 Zum Spiel</a>
+    <a href="/admin.html" id="admin-link" style="display:none">🛠️ Admin</a>
+  </div>
+</header>
+
+<main>
+  <div class="stat-row">
+    <div class="stat-card"><div class="val" id="stat-users">—</div><div class="lbl">Spieler gesamt</div></div>
+    <div class="stat-card"><div class="val" id="stat-online">—</div><div class="lbl">Online jetzt</div></div>
+    <div class="stat-card"><div class="val" id="stat-total-coins">—</div><div class="lbl">Coins im Umlauf</div></div>
+    <div class="stat-card"><div class="val" id="stat-leader">—</div><div class="lbl">Aktueller Spitzenreiter</div></div>
+  </div>
+
+  <div class="panel-box">
+    <h2>📈 Geldentwicklung (Gesamtwirtschaft über die letzten Runden)</h2>
+    <div id="chart-wrap"><svg id="chart-svg" viewBox="0 0 1000 220" preserveAspectRatio="none"></svg></div>
+  </div>
+
+  <div class="panel-box">
+    <h2>🏆 Leaderboard — Die reichsten Spieler</h2>
+    <table>
+      <thead><tr><th class="rank">#</th><th>Name</th><th>Coins</th></tr></thead>
+      <tbody id="leaderboard-body"></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+const me = JSON.parse(localStorage.getItem('roulette_user') || 'null');
+if (!me) window.location.href = '/';
+if (me && me.isAdmin) document.getElementById('admin-link').style.display = 'inline';
+
+function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmt(n) { return n.toLocaleString('de-DE'); }
+
+function render(data) {
+  document.getElementById('stat-users').textContent = data.total_users;
+  document.getElementById('stat-online').textContent = data.online_count;
+  document.getElementById('stat-total-coins').textContent = fmt(data.total_coins) + ' 🪙';
+  const leader = data.leaderboard[0];
+  document.getElementById('stat-leader').textContent = leader ? leader.name : '—';
+
+  renderLeaderboard(data.leaderboard);
+  renderChart(data.history);
+}
+
+function renderLeaderboard(leaderboard) {
+  const body = document.getElementById('leaderboard-body');
+  if (!leaderboard.length) {
+    body.innerHTML = '<tr><td colspan="3" style="color:var(--muted)">Noch keine Spieler.</td></tr>';
+    return;
+  }
+  body.innerHTML = leaderboard.map((u, i) => {
+    const rank = i + 1;
+    const medal = rank === 1 ? '👑' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+    return `
+      <tr>
+        <td class="rank ${rank <= 3 ? 'r' + rank : ''}">${rank}</td>
+        <td><span class="dot ${u.online ? 'on' : ''}"></span>${escapeHtml(u.name)}${u.isAdmin ? ' 🛠️' : ''}<span class="crown">${medal}</span></td>
+        <td class="coins-cell">${fmt(u.coins)} 🪙</td>
+      </tr>`;
+  }).join('');
+}
+
+function renderChart(history) {
+  const svg = document.getElementById('chart-svg');
+  svg.innerHTML = '';
+  if (!history || history.length < 2) {
+    svg.innerHTML = '<text x="500" y="110" fill="#8a8fa3" font-size="13" text-anchor="middle">Noch nicht genug Runden für eine Kurve.</text>';
+    return;
+  }
+  const w = 1000, h = 220, padding = 30;
+  const values = history.map(p => p.total);
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || 1;
+
+  const points = history.map((p, i) => {
+    const x = padding + (i / (history.length - 1)) * (w - padding * 2);
+    const y = h - padding - ((p.total - min) / range) * (h - padding * 2);
+    return [x, y];
+  });
+
+  // Grid + Achsenlinie
+  let svgHtml = `<line x1="${padding}" y1="${h - padding}" x2="${w - padding}" y2="${h - padding}" stroke="#2a313d" stroke-width="1"/>`;
+
+  // Fläche unter der Kurve
+  const areaPath = `M${points[0][0]},${h - padding} ` + points.map(p => `L${p[0]},${p[1]}`).join(' ') + ` L${points[points.length - 1][0]},${h - padding} Z`;
+  svgHtml += `<path d="${areaPath}" fill="url(#grad)" opacity="0.25"/>`;
+
+  const linePath = `M` + points.map(p => `${p[0]},${p[1]}`).join(' L');
+  svgHtml += `
+    <defs>
+      <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#ffc857"/>
+        <stop offset="100%" stop-color="#0d0d0d" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${linePath}" fill="none" stroke="#ffc857" stroke-width="2.5"/>`;
+
+  points.forEach((p, i) => {
+    if (i === points.length - 1 || i === 0) {
+      svgHtml += `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="#ffc857"/>`;
+    }
+  });
+
+  svgHtml += `<text x="${padding}" y="16" fill="#8a8fa3" font-size="11">Max: ${fmt(max)} 🪙</text>`;
+  svgHtml += `<text x="${padding}" y="${h - padding + 18}" fill="#8a8fa3" font-size="11">Min: ${fmt(min)} 🪙</text>`;
+
+  svg.innerHTML = svgHtml;
+}
+
+const socket = io();
+socket.on('connect', () => {
+  fetch('/api/dashboard').then(r => r.json()).then(render);
+});
+socket.on('dashboard:update', render);
+// Sicherheitsnetz: alle 20s zusätzlich aktuell halten, falls ein Update verpasst wurde
+setInterval(() => fetch('/api/dashboard').then(r => r.json()).then(render), 20000);
+</script>
+</body>
+</html>

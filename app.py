@@ -6,24 +6,27 @@ import uuid
 from threading import Lock
 
 from flask import Flask, request, jsonify, send_from_directory
-from flask_socketio import SocketIO, emit, join_room
+from flask_socketio import SocketIO, emit, join_room, disconnect
 from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'db.json')
 
-START_COINS = 1000
 ADMIN_NAMES = ['admin']  # Namen (lowercase), die automatisch Admin-Rechte bekommen
 
-BETTING_SECONDS = 15
-SPIN_SECONDS = 3
-RESULT_SECONDS = 5
+DEFAULT_SETTINGS = {
+    "betting_seconds": 15,
+    "spin_seconds": 3,
+    "result_seconds": 5,
+    "start_coins": 1000,
+}
 
 RED_NUMBERS = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
 
 MAX_CHAT_LEN = 500
 MAX_GLOBAL_HISTORY = 200
 MAX_PRIVATE_HISTORY = 200
+MAX_COIN_HISTORY = 300
 
 db_lock = Lock()
 
@@ -33,6 +36,8 @@ DEFAULT_DB = {
     "round_history": [],  # letzte Ergebnisse {number, color, ts}
     "global_chat": [],
     "private_chats": {},  # key "id1_id2" (sortiert) -> [messages]
+    "settings": dict(DEFAULT_SETTINGS),
+    "coin_history": [],  # Snapshots {ts, total, top:[{name,coins}]}
 }
 
 
@@ -42,10 +47,18 @@ def load_db():
         return json.loads(json.dumps(DEFAULT_DB))
     with open(DB_PATH, 'r', encoding='utf-8') as f:
         db = json.load(f)
-    # Migration für ältere db.json-Dateien ohne Chat-Felder
+    # Migration für ältere db.json-Dateien ohne neuere Felder
     db.setdefault('global_chat', [])
     db.setdefault('private_chats', {})
+    db.setdefault('settings', dict(DEFAULT_SETTINGS))
+    for k, v in DEFAULT_SETTINGS.items():
+        db['settings'].setdefault(k, v)
+    db.setdefault('coin_history', [])
     return db
+
+
+def get_settings(db):
+    return db.get('settings', dict(DEFAULT_SETTINGS))
 
 
 def save_db(data):
@@ -102,7 +115,7 @@ def sids_for_user(user_id):
 roulette = {
     "phase": "betting",       # betting | spinning | result
     "round_id": 1,
-    "ends_at": time.time() + BETTING_SECONDS,
+    "ends_at": time.time() + DEFAULT_SETTINGS['betting_seconds'],
     "bets": {},                # userId -> list of {type, value, amount}
     "result_number": None,
 }
@@ -117,6 +130,11 @@ def index():
 @app.route('/admin.html')
 def admin_page():
     return send_from_directory('templates', 'admin.html')
+
+
+@app.route('/dashboard.html')
+def dashboard_page():
+    return send_from_directory('templates', 'dashboard.html')
 
 
 def public_user(u):
@@ -140,15 +158,16 @@ def login():
 
         if not user:
             # Neuer Benutzer -> Account wird mit diesem Passwort angelegt
+            start_coins = get_settings(db)['start_coins']
             user = {
                 "id": uuid.uuid4().hex[:10],
                 "name": name,
-                "coins": START_COINS,
+                "coins": start_coins,
                 "isAdmin": name.lower() in ADMIN_NAMES,
                 "password_hash": generate_password_hash(password),
             }
             db['users'].append(user)
-            add_transaction(db, user['id'], user['name'], START_COINS, "Startguthaben")
+            add_transaction(db, user['id'], user['name'], start_coins, "Startguthaben")
             save_db(db)
         elif not user.get('password_hash'):
             # Migration: älterer Account ohne Passwort -> jetzt damit absichern
@@ -199,6 +218,41 @@ def public_roulette_state():
 def my_bets_payload(user_id):
     with roulette_lock:
         return roulette['bets'].get(user_id, [])
+
+
+# ============ DASHBOARD / LEADERBOARD ============
+
+def dashboard_payload(db):
+    leaderboard = sorted(db['users'], key=lambda u: u['coins'], reverse=True)
+    online_ids = {v['userId'] for v in online.values()}
+    return {
+        "leaderboard": [
+            {"id": u['id'], "name": u['name'], "coins": u['coins'], "isAdmin": u['isAdmin'], "online": u['id'] in online_ids}
+            for u in leaderboard[:50]
+        ],
+        "history": db['coin_history'][-MAX_COIN_HISTORY:],
+        "total_users": len(db['users']),
+        "total_coins": sum(u['coins'] for u in db['users']),
+        "online_count": len(online_ids),
+    }
+
+
+def record_coin_snapshot(db):
+    leaderboard = sorted(db['users'], key=lambda u: u['coins'], reverse=True)
+    entry = {
+        "ts": int(time.time() * 1000),
+        "total": sum(u['coins'] for u in db['users']),
+        "top": [{"name": u['name'], "coins": u['coins']} for u in leaderboard[:5]],
+    }
+    db['coin_history'].append(entry)
+    db['coin_history'] = db['coin_history'][-MAX_COIN_HISTORY:]
+
+
+def broadcast_dashboard():
+    with db_lock:
+        db = load_db()
+        payload = dashboard_payload(db)
+    socketio.emit('dashboard:update', payload)
 
 
 # ============ SOCKET.IO — ROULETTE ============
@@ -464,38 +518,49 @@ def run_round_payouts(result_number):
             "number": result_number, "color": number_color(result_number), "ts": int(time.time() * 1000)
         })
         db['round_history'] = db['round_history'][-30:]
+        record_coin_snapshot(db)
         save_db(db)
 
 
 def roulette_game_loop():
     while True:
+        with db_lock:
+            settings = get_settings(load_db())
+
         # --- BETTING PHASE ---
         with roulette_lock:
             roulette['phase'] = 'betting'
             roulette['bets'] = {}
             roulette['result_number'] = None
-            roulette['ends_at'] = time.time() + BETTING_SECONDS
+            roulette['ends_at'] = time.time() + settings['betting_seconds']
         socketio.emit('roulette:state', public_roulette_state(), room='global')
-        time.sleep(BETTING_SECONDS)
+        time.sleep(settings['betting_seconds'])
+
+        with db_lock:
+            settings = get_settings(load_db())
 
         # --- SPINNING PHASE ---
         result_number = random.randint(0, 36)
         with roulette_lock:
             roulette['phase'] = 'spinning'
             roulette['result_number'] = result_number
-            roulette['ends_at'] = time.time() + SPIN_SECONDS
+            roulette['ends_at'] = time.time() + settings['spin_seconds']
         socketio.emit('roulette:state', public_roulette_state(), room='global')
-        time.sleep(SPIN_SECONDS)
+        time.sleep(settings['spin_seconds'])
+
+        with db_lock:
+            settings = get_settings(load_db())
 
         # --- PAYOUT & RESULT PHASE ---
         run_round_payouts(result_number)
         with roulette_lock:
             roulette['phase'] = 'result'
-            roulette['ends_at'] = time.time() + RESULT_SECONDS
+            roulette['ends_at'] = time.time() + settings['result_seconds']
             roulette['round_id'] += 1
         socketio.emit('roulette:state', public_roulette_state(), room='global')
         broadcast_users()
-        time.sleep(RESULT_SECONDS)
+        broadcast_dashboard()
+        time.sleep(settings['result_seconds'])
 
 
 # ============ ADMIN API ============
@@ -506,6 +571,13 @@ def require_admin():
         db = load_db()
         user = get_user(db, user_id)
     return user if user and user.get('isAdmin') else None
+
+
+@app.route('/api/dashboard')
+def dashboard_api():
+    with db_lock:
+        db = load_db()
+    return jsonify(dashboard_payload(db))
 
 
 @app.route('/api/admin/users')
@@ -545,7 +617,201 @@ def admin_adjust_coins():
         save_db(db)
         new_coins = user['coins']
     broadcast_users()
+    broadcast_dashboard()
     return jsonify({"ok": True, "coins": new_coins})
+
+
+@app.route('/api/admin/settings', methods=['GET'])
+def admin_get_settings():
+    if not require_admin():
+        return jsonify({"error": "Kein Zugriff"}), 403
+    with db_lock:
+        db = load_db()
+    return jsonify(get_settings(db))
+
+
+@app.route('/api/admin/settings', methods=['POST'])
+def admin_update_settings():
+    if not require_admin():
+        return jsonify({"error": "Kein Zugriff"}), 403
+    data = request.json or {}
+    with db_lock:
+        db = load_db()
+        settings = db.setdefault('settings', dict(DEFAULT_SETTINGS))
+        for key in ('betting_seconds', 'spin_seconds', 'result_seconds'):
+            if key in data:
+                try:
+                    val = int(data[key])
+                    if 2 <= val <= 600:
+                        settings[key] = val
+                except (TypeError, ValueError):
+                    pass
+        if 'start_coins' in data:
+            try:
+                val = int(data['start_coins'])
+                if 0 <= val <= 1_000_000:
+                    settings['start_coins'] = val
+            except (TypeError, ValueError):
+                pass
+        save_db(db)
+        new_settings = get_settings(db)
+    return jsonify({"ok": True, "settings": new_settings})
+
+
+@app.route('/api/admin/set-admin', methods=['POST'])
+def admin_set_admin():
+    acting_admin = require_admin()
+    if not acting_admin:
+        return jsonify({"error": "Kein Zugriff"}), 403
+    data = request.json or {}
+    user_id = data.get('userId')
+    is_admin = bool(data.get('isAdmin'))
+
+    with db_lock:
+        db = load_db()
+        user = get_user(db, user_id)
+        if not user:
+            return jsonify({"error": "User nicht gefunden"}), 404
+        if user['id'] == acting_admin['id'] and not is_admin:
+            return jsonify({"error": "Du kannst dir selbst nicht die Admin-Rechte entziehen"}), 400
+        user['isAdmin'] = is_admin
+        save_db(db)
+    broadcast_users()
+    return jsonify({"ok": True})
+
+
+@app.route('/api/admin/reset-password', methods=['POST'])
+def admin_reset_password():
+    if not require_admin():
+        return jsonify({"error": "Kein Zugriff"}), 403
+    data = request.json or {}
+    user_id = data.get('userId')
+    new_password = data.get('newPassword') or ''
+    if len(new_password) < 4:
+        return jsonify({"error": "Passwort muss mindestens 4 Zeichen haben"}), 400
+
+    with db_lock:
+        db = load_db()
+        user = get_user(db, user_id)
+        if not user:
+            return jsonify({"error": "User nicht gefunden"}), 404
+        user['password_hash'] = generate_password_hash(new_password)
+        save_db(db)
+    return jsonify({"ok": True})
+
+
+@app.route('/api/admin/rename-user', methods=['POST'])
+def admin_rename_user():
+    if not require_admin():
+        return jsonify({"error": "Kein Zugriff"}), 403
+    data = request.json or {}
+    user_id = data.get('userId')
+    new_name = (data.get('newName') or '').strip()
+    if not new_name or len(new_name) > 24:
+        return jsonify({"error": "Ungültiger Name"}), 400
+
+    with db_lock:
+        db = load_db()
+        user = get_user(db, user_id)
+        if not user:
+            return jsonify({"error": "User nicht gefunden"}), 404
+        if get_user_by_name(db, new_name) and new_name.lower() != user['name'].lower():
+            return jsonify({"error": "Name bereits vergeben"}), 400
+        user['name'] = new_name
+        save_db(db)
+    broadcast_users()
+    broadcast_dashboard()
+    return jsonify({"ok": True})
+
+
+@app.route('/api/admin/kick-user', methods=['POST'])
+def admin_kick_user():
+    if not require_admin():
+        return jsonify({"error": "Kein Zugriff"}), 403
+    data = request.json or {}
+    user_id = data.get('userId')
+    for sid in sids_for_user(user_id):
+        socketio.emit('account:kicked', {}, room=sid)
+        disconnect(sid=sid)
+    online_ids_before = list(online.keys())
+    for sid in online_ids_before:
+        if online.get(sid, {}).get('userId') == user_id:
+            online.pop(sid, None)
+    broadcast_users()
+    return jsonify({"ok": True})
+
+
+@app.route('/api/admin/delete-user', methods=['POST'])
+def admin_delete_user():
+    acting_admin = require_admin()
+    if not acting_admin:
+        return jsonify({"error": "Kein Zugriff"}), 403
+    data = request.json or {}
+    user_id = data.get('userId')
+    if user_id == acting_admin['id']:
+        return jsonify({"error": "Du kannst deinen eigenen Account hier nicht löschen"}), 400
+
+    with db_lock:
+        db = load_db()
+        before = len(db['users'])
+        db['users'] = [u for u in db['users'] if u['id'] != user_id]
+        if len(db['users']) == before:
+            return jsonify({"error": "User nicht gefunden"}), 404
+        save_db(db)
+
+    for sid in sids_for_user(user_id):
+        socketio.emit('account:deleted', {}, room=sid)
+        disconnect(sid=sid)
+    online_ids_before = list(online.keys())
+    for sid in online_ids_before:
+        if online.get(sid, {}).get('userId') == user_id:
+            online.pop(sid, None)
+    broadcast_users()
+    broadcast_dashboard()
+    return jsonify({"ok": True})
+
+
+@app.route('/api/admin/broadcast', methods=['POST'])
+def admin_broadcast():
+    if not require_admin():
+        return jsonify({"error": "Kein Zugriff"}), 403
+    data = request.json or {}
+    text = (data.get('text') or '').strip()
+    if not text or len(text) > MAX_CHAT_LEN:
+        return jsonify({"error": "Ungültige Nachricht"}), 400
+
+    msg = {
+        "id": uuid.uuid4().hex[:8],
+        "userId": "system",
+        "name": "📢 Admin-Ansage",
+        "text": text,
+        "ts": int(time.time() * 1000),
+        "system": True,
+    }
+    with db_lock:
+        db = load_db()
+        db['global_chat'].append(msg)
+        db['global_chat'] = db['global_chat'][-MAX_GLOBAL_HISTORY:]
+        save_db(db)
+    socketio.emit('chat:global', msg, room='global')
+    return jsonify({"ok": True})
+
+
+@app.route('/api/admin/stats')
+def admin_stats():
+    if not require_admin():
+        return jsonify({"error": "Kein Zugriff"}), 403
+    with db_lock:
+        db = load_db()
+    return jsonify({
+        "total_users": len(db['users']),
+        "online_users": len({v['userId'] for v in online.values()}),
+        "total_coins": sum(u['coins'] for u in db['users']),
+        "total_transactions": len(db['transactions']),
+        "round_id": roulette['round_id'],
+        "current_phase": roulette['phase'],
+        "settings": get_settings(db),
+    })
 
 
 if __name__ == '__main__':

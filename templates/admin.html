@@ -2,48 +2,150 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Admin — Live Roulette</title>
+<title>Admin — Live Millionaires</title>
 <style>
   :root { --bg:#0d1117; --panel:#161b22; --panel2:#1e2530; --border:#2a313d; --text:#e8e9ed; --muted:#8a8fa3; --accent:#5b8cff; --green:#2ecc71; --red:#e64545; --gold:#ffc857; }
   * { box-sizing: border-box; }
   body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); padding:24px; }
   h1 { font-size:20px; }
+  header.top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom: 6px; }
   a.back { color: var(--accent); text-decoration:none; font-size:13px; }
+  .links { display:flex; gap:14px; }
+
+  .tabs { display:flex; gap:6px; margin-top:18px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .tab-btn { background:transparent; color:var(--muted); border:none; padding:10px 16px; font-size:13px; font-weight:600; border-bottom:2px solid transparent; cursor:pointer; border-radius:0; }
+  .tab-btn.active { color:var(--text); border-bottom-color:var(--accent); }
+  .tab-view { display:none; }
+  .tab-view.active { display:block; }
+
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px; margin-top:18px; }
   .panel h2 { font-size:14px; text-transform:uppercase; color:var(--muted); margin:0 0 14px; }
   table { width:100%; border-collapse: collapse; font-size:13px; }
-  th, td { text-align:left; padding:7px 6px; border-bottom:1px solid var(--border); }
-  th { color: var(--muted); }
-  input[type=number] { background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 7px; font-size:13px; width:90px; }
+  th, td { text-align:left; padding:7px 6px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  th { color: var(--muted); font-size:11px; text-transform:uppercase; }
+  input[type=number], input[type=text], input[type=password] { background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 9px; font-size:13px; }
+  input[type=number] { width:90px; }
   button { cursor:pointer; border:none; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:600; background:var(--accent); color:white; }
+  button.danger { background: var(--red); }
+  button.ghost { background: var(--panel2); color: var(--text); border:1px solid var(--border); }
+  button.small { padding:4px 8px; font-size:11px; }
+  button:disabled { opacity:.5; cursor:default; }
   .pos { color: var(--green); } .neg { color: var(--red); }
   #denied { display:none; text-align:center; padding:60px; color:var(--red); }
+
+  .stat-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin-top:18px; }
+  .stat-card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; text-align:center; }
+  .stat-card .val { font-size:22px; font-weight:800; color:var(--gold); }
+  .stat-card .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; margin-top:4px; }
+
+  .settings-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:14px; }
+  .settings-grid label { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; margin-bottom:5px; }
+  .settings-grid input { width:100%; }
+  .row-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .toggle-admin { display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; }
+  .save-bar { margin-top:14px; display:flex; align-items:center; gap:10px; }
+  #settings-status { font-size:12px; color: var(--green); }
+
+  .broadcast-row { display:flex; gap:10px; }
+  .broadcast-row input { flex:1; }
+
+  #search-users { margin-bottom: 12px; width: 260px; }
 </style>
 </head>
 <body>
-<a class="back" href="/">&larr; Zurück zum Roulette</a>
-<h1>🛠️ Admin Panel</h1>
+<header class="top">
+  <a class="back" href="/">&larr; Zurück zum Spiel</a>
+  <div class="links">
+    <a class="back" href="/dashboard.html">📊 Dashboard</a>
+  </div>
+</header>
+<h1>🛠️ Admin Panel — Live Millionaires</h1>
 <div id="denied">⛔ Kein Zugriff — du bist kein Admin.</div>
+
 <div id="content" style="display:none">
-  <div class="panel">
-    <h2>User & Coins</h2>
-    <table>
-      <thead><tr><th>Name</th><th>Coins</th><th>Anpassen</th></tr></thead>
-      <tbody id="users-table"></tbody>
-    </table>
+
+  <div class="stat-row" id="stat-row"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="users">👥 Benutzer</button>
+    <button class="tab-btn" data-tab="settings">⚙️ Spiel-Einstellungen</button>
+    <button class="tab-btn" data-tab="broadcast">📢 Ansage</button>
+    <button class="tab-btn" data-tab="log">📜 Transaktionslog</button>
   </div>
-  <div class="panel">
-    <h2>Transaktionslog (letzte 200)</h2>
-    <table>
-      <thead><tr><th>Zeit</th><th>Name</th><th>Betrag</th><th>Grund</th></tr></thead>
-      <tbody id="tx-table"></tbody>
-    </table>
+
+  <!-- USERS -->
+  <div class="tab-view active" id="tab-users">
+    <div class="panel">
+      <h2>Benutzer &amp; Coins</h2>
+      <input type="text" id="search-users" placeholder="🔍 Spieler suchen...">
+      <table>
+        <thead><tr><th>Name</th><th>Coins</th><th>Status</th><th>Aktionen</th></tr></thead>
+        <tbody id="users-table"></tbody>
+      </table>
+    </div>
   </div>
+
+  <!-- SETTINGS -->
+  <div class="tab-view" id="tab-settings">
+    <div class="panel">
+      <h2>Spiel-Einstellungen</h2>
+      <div class="settings-grid">
+        <div>
+          <label>Setzphase (Sekunden)</label>
+          <input type="number" id="set-betting" min="2" max="600">
+        </div>
+        <div>
+          <label>Kugel-rollt-Phase (Sekunden)</label>
+          <input type="number" id="set-spin" min="2" max="600">
+        </div>
+        <div>
+          <label>Ergebnis-Anzeige (Sekunden)</label>
+          <input type="number" id="set-result" min="2" max="600">
+        </div>
+        <div>
+          <label>Startguthaben neuer Spieler</label>
+          <input type="number" id="set-startcoins" min="0" max="1000000">
+        </div>
+      </div>
+      <div class="save-bar">
+        <button id="save-settings-btn">Speichern</button>
+        <span id="settings-status"></span>
+      </div>
+      <p style="color:var(--muted); font-size:12px; margin-top:14px;">Änderungen greifen ab der nächsten Spielphase — kein Neustart des Servers nötig.</p>
+    </div>
+  </div>
+
+  <!-- BROADCAST -->
+  <div class="tab-view" id="tab-broadcast">
+    <div class="panel">
+      <h2>Ansage an alle Spieler senden</h2>
+      <p style="color:var(--muted); font-size:12px;">Erscheint als Systemnachricht im globalen Chat.</p>
+      <div class="broadcast-row">
+        <input type="text" id="broadcast-input" placeholder="z.B. 'In 5 Minuten Wartungspause!'" maxlength="500">
+        <button id="broadcast-btn">Senden</button>
+      </div>
+      <div id="broadcast-status" style="margin-top:10px; font-size:12px; color:var(--green);"></div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="tab-view" id="tab-log">
+    <div class="panel">
+      <h2>Transaktionslog (letzte 200)</h2>
+      <table>
+        <thead><tr><th>Zeit</th><th>Name</th><th>Betrag</th><th>Grund</th></tr></thead>
+        <tbody id="tx-table"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <script>
 const me = JSON.parse(localStorage.getItem('roulette_user') || 'null');
 if (!me) window.location.href = '/';
+
+let allUsers = [];
 
 async function api(path, opts = {}) {
   opts.headers = { ...(opts.headers||{}), 'Content-Type': 'application/json', 'x-user-id': me.id };
@@ -51,25 +153,113 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
+function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmt(n) { return n.toLocaleString('de-DE'); }
+
+// ===== Tabs =====
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  };
+});
+
 async function init() {
   const users = await api('/api/admin/users');
   if (users.error) { document.getElementById('denied').style.display = 'block'; return; }
   document.getElementById('content').style.display = 'block';
-  renderUsers(users);
+  allUsers = users;
+  renderUsers();
+  const stats = await api('/api/admin/stats');
+  renderStats(stats);
+  loadSettingsForm(stats.settings);
   const txs = await api('/api/admin/transactions');
   renderTx(txs);
 }
 
-function renderUsers(users) {
+function renderStats(stats) {
+  document.getElementById('stat-row').innerHTML = `
+    <div class="stat-card"><div class="val">${stats.total_users}</div><div class="lbl">Spieler gesamt</div></div>
+    <div class="stat-card"><div class="val">${stats.online_users}</div><div class="lbl">Online</div></div>
+    <div class="stat-card"><div class="val">${fmt(stats.total_coins)} 🪙</div><div class="lbl">Coins im Umlauf</div></div>
+    <div class="stat-card"><div class="val">${stats.total_transactions}</div><div class="lbl">Transaktionen</div></div>
+    <div class="stat-card"><div class="val">#${stats.round_id}</div><div class="lbl">Aktuelle Runde (${stats.current_phase})</div></div>
+  `;
+}
+
+function loadSettingsForm(settings) {
+  document.getElementById('set-betting').value = settings.betting_seconds;
+  document.getElementById('set-spin').value = settings.spin_seconds;
+  document.getElementById('set-result').value = settings.result_seconds;
+  document.getElementById('set-startcoins').value = settings.start_coins;
+}
+
+document.getElementById('save-settings-btn').onclick = async () => {
+  const payload = {
+    betting_seconds: parseInt(document.getElementById('set-betting').value, 10),
+    spin_seconds: parseInt(document.getElementById('set-spin').value, 10),
+    result_seconds: parseInt(document.getElementById('set-result').value, 10),
+    start_coins: parseInt(document.getElementById('set-startcoins').value, 10),
+  };
+  const res = await api('/api/admin/settings', { method: 'POST', body: JSON.stringify(payload) });
+  const status = document.getElementById('settings-status');
+  if (res.error) { status.style.color = 'var(--red)'; status.textContent = '⚠️ ' + res.error; return; }
+  loadSettingsForm(res.settings);
+  status.style.color = 'var(--green)';
+  status.textContent = '✅ Gespeichert';
+  setTimeout(() => status.textContent = '', 2500);
+};
+
+document.getElementById('broadcast-btn').onclick = async () => {
+  const input = document.getElementById('broadcast-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const res = await api('/api/admin/broadcast', { method: 'POST', body: JSON.stringify({ text }) });
+  const status = document.getElementById('broadcast-status');
+  if (res.error) { status.style.color = 'var(--red)'; status.textContent = '⚠️ ' + res.error; return; }
+  input.value = '';
+  status.style.color = 'var(--green)';
+  status.textContent = '✅ Ansage gesendet';
+  setTimeout(() => status.textContent = '', 2500);
+};
+
+document.getElementById('search-users').addEventListener('input', renderUsers);
+
+function renderUsers() {
+  const search = (document.getElementById('search-users').value || '').toLowerCase();
   const tbody = document.getElementById('users-table');
-  tbody.innerHTML = '';
-  users.forEach(u => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${u.name}${u.isAdmin ? ' 👑' : ''}</td>
-      <td>${u.coins} 🪙</td>
-      <td><input type="number" placeholder="±Betrag" id="amt-${u.id}"> <button onclick="adjust('${u.id}')">Anwenden</button></td>`;
-    tbody.appendChild(tr);
+  const filtered = allUsers.filter(u => u.name.toLowerCase().includes(search));
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">Keine Spieler gefunden.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(u => `
+    <tr data-id="${u.id}">
+      <td>${escapeHtml(u.name)}${u.isAdmin ? ' 👑' : ''}</td>
+      <td>${fmt(u.coins)} 🪙</td>
+      <td>
+        <label class="toggle-admin">
+          <input type="checkbox" class="admin-toggle" data-id="${u.id}" ${u.isAdmin ? 'checked' : ''}>
+          Admin
+        </label>
+      </td>
+      <td>
+        <div class="row-actions">
+          <input type="number" placeholder="±Betrag" id="amt-${u.id}">
+          <button class="small" onclick="adjustCoins('${u.id}')">Coins</button>
+          <button class="small ghost" onclick="renameUser('${u.id}', '${escapeHtml(u.name)}')">Umbenennen</button>
+          <button class="small ghost" onclick="resetPassword('${u.id}', '${escapeHtml(u.name)}')">Passwort</button>
+          <button class="small ghost" onclick="kickUser('${u.id}', '${escapeHtml(u.name)}')">Kick</button>
+          <button class="small danger" onclick="deleteUser('${u.id}', '${escapeHtml(u.name)}')">Löschen</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('.admin-toggle').forEach(cb => {
+    cb.onchange = () => toggleAdmin(cb.dataset.id, cb.checked, cb);
   });
 }
 
@@ -79,17 +269,52 @@ function renderTx(txs) {
   txs.forEach(t => {
     const tr = document.createElement('tr');
     const cls = t.amount >= 0 ? 'pos' : 'neg';
-    tr.innerHTML = `<td>${new Date(t.ts).toLocaleString('de-DE')}</td><td>${t.name}</td><td class="${cls}">${t.amount > 0 ? '+' : ''}${t.amount}</td><td>${t.reason}</td>`;
+    tr.innerHTML = `<td>${new Date(t.ts).toLocaleString('de-DE')}</td><td>${escapeHtml(t.name)}</td><td class="${cls}">${t.amount > 0 ? '+' : ''}${t.amount}</td><td>${escapeHtml(t.reason)}</td>`;
     tbody.appendChild(tr);
   });
 }
 
-async function adjust(userId) {
+async function adjustCoins(userId) {
   const input = document.getElementById('amt-' + userId);
   const amount = parseInt(input.value, 10);
   if (!amount) return;
   await api('/api/admin/adjust-coins', { method: 'POST', body: JSON.stringify({ userId, amount, reason: 'Admin-Anpassung' }) });
   input.value = '';
+  init();
+}
+
+async function toggleAdmin(userId, isAdmin, checkbox) {
+  const res = await api('/api/admin/set-admin', { method: 'POST', body: JSON.stringify({ userId, isAdmin }) });
+  if (res.error) { alert(res.error); checkbox.checked = !isAdmin; return; }
+  init();
+}
+
+async function renameUser(userId, currentName) {
+  const newName = prompt('Neuer Name für ' + currentName + ':', currentName);
+  if (!newName || newName.trim() === currentName) return;
+  const res = await api('/api/admin/rename-user', { method: 'POST', body: JSON.stringify({ userId, newName: newName.trim() }) });
+  if (res.error) { alert(res.error); return; }
+  init();
+}
+
+async function resetPassword(userId, name) {
+  const pw = prompt('Neues Passwort für ' + name + ' (mind. 4 Zeichen):');
+  if (!pw) return;
+  const res = await api('/api/admin/reset-password', { method: 'POST', body: JSON.stringify({ userId, newPassword: pw }) });
+  if (res.error) { alert(res.error); return; }
+  alert('Passwort für ' + name + ' wurde geändert.');
+}
+
+async function kickUser(userId, name) {
+  if (!confirm(name + ' jetzt aus der laufenden Sitzung werfen?')) return;
+  await api('/api/admin/kick-user', { method: 'POST', body: JSON.stringify({ userId }) });
+  init();
+}
+
+async function deleteUser(userId, name) {
+  if (!confirm('Account "' + name + '" wirklich endgültig löschen? Das kann nicht rückgängig gemacht werden.')) return;
+  const res = await api('/api/admin/delete-user', { method: 'POST', body: JSON.stringify({ userId }) });
+  if (res.error) { alert(res.error); return; }
   init();
 }
 

@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Live Roulette</title>
+<title>Live Millionaires</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
   :root {
@@ -191,7 +191,7 @@
 
 <div id="login-screen">
   <div class="login-box">
-    <h1>🎡 Live Roulette</h1>
+    <h1>💎 Live Millionaires</h1>
     <p>Tritt der Runde bei und setze mit deinen Kollegen</p>
     <input type="text" id="name-input" placeholder="Dein Name" maxlength="24" autofocus>
     <div class="password-field" style="margin-bottom:12px;">
@@ -205,9 +205,10 @@
 
 <div id="app">
   <header>
-    <div class="brand">🎡 Live Roulette</div>
+    <div class="brand">💎 Live Millionaires</div>
     <div class="right">
       <span class="coins-badge">🪙 <span id="me-coins">0</span></span>
+      <a class="admin-link" href="/dashboard.html" style="display:inline">📊 Dashboard</a>
       <a class="admin-link" href="/admin.html" id="admin-link" style="display:none">🛠️ Admin</a>
       <button id="logout-btn" style="background:var(--panel2); color:var(--muted); border:1px solid var(--border); padding:7px 12px; font-size:12px;">Abmelden</button>
     </div>
@@ -457,6 +458,14 @@ function connectSocket() {
   });
   socket.on('roulette:error', showError);
   socket.on('users:update', renderUsers);
+  socket.on('account:kicked', () => {
+    alert('Du wurdest von einem Admin aus der Sitzung entfernt.');
+    doLogout();
+  });
+  socket.on('account:deleted', () => {
+    alert('Dein Account wurde von einem Admin gelöscht.');
+    doLogout();
+  });
 
   socket.on('chat:globalHistory', msgs => {
     const box = document.getElementById('global-messages');
