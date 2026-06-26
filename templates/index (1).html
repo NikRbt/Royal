@@ -17,7 +17,15 @@
   .login-box { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:36px 40px; width:320px; text-align:center; }
   .login-box h1 { font-size:22px; margin-bottom:4px; }
   .login-box p { color:var(--muted); font-size:13px; margin-bottom:20px; }
-  input[type=text], input[type=number] { width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--panel2); color:var(--text); font-size:14px; margin-bottom:12px; }
+  input[type=text], input[type=number], input[type=password] { width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--panel2); color:var(--text); font-size:14px; margin-bottom:12px; }
+  input[type=text]:focus, input[type=number]:focus, input[type=password]:focus { outline:none; border-color: var(--accent); }
+  .password-field { position: relative; }
+  .password-field input { padding-right: 40px; margin-bottom: 0; }
+  .password-field .toggle-pw {
+    position: absolute; right: 4px; top: 4px; bottom: 4px; width: 32px; padding: 0;
+    background: transparent; color: var(--muted); font-size: 15px; border-radius: 6px;
+  }
+  .password-field .toggle-pw:hover { color: var(--text); background: var(--border); }
   button { cursor:pointer; border:none; border-radius:8px; font-size:14px; font-weight:600; padding:10px 16px; }
   button:hover { opacity:.9; } button:active { transform:scale(.97); }
   .btn-primary { background:var(--accent); color:white; width:100%; }
@@ -123,6 +131,9 @@
   .panel-box { background: var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:18px; }
   .panel-box h3 { font-size:13px; text-transform:uppercase; color:var(--muted); margin:0 0 10px; }
   .my-bets-list { font-size:13px; display:flex; flex-direction:column; gap:4px; }
+  .my-bet-row { display:flex; align-items:center; justify-content:space-between; gap:8px; background:var(--panel2); border:1px solid var(--border); border-radius:7px; padding:5px 6px 5px 10px; }
+  .my-bet-row .remove-bet { background:transparent; color:var(--muted); padding:2px 7px; font-size:13px; border-radius:6px; line-height:1; }
+  .my-bet-row .remove-bet:hover { color:var(--red-c); background:#3a1c1c; }
   .history-row { display:flex; gap:6px; flex-wrap:wrap; }
   .history-chip { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
   .history-chip.red { background: var(--red-c); color:white; } .history-chip.black { background: var(--black-c); color:white; } .history-chip.green { background: var(--green); color:#0d1117; }
@@ -183,7 +194,12 @@
     <h1>🎡 Live Roulette</h1>
     <p>Tritt der Runde bei und setze mit deinen Kollegen</p>
     <input type="text" id="name-input" placeholder="Dein Name" maxlength="24" autofocus>
+    <div class="password-field" style="margin-bottom:12px;">
+      <input type="password" id="password-input" placeholder="Passwort" maxlength="64">
+      <button type="button" class="toggle-pw" id="toggle-pw" title="Passwort anzeigen">👁</button>
+    </div>
     <button class="btn-primary" id="login-btn">Beitreten</button>
+    <p id="login-hint" style="margin-top:12px; margin-bottom:0; font-size:11px;">Neuer Name → Account wird mit diesem Passwort angelegt.</p>
   </div>
 </div>
 
@@ -193,6 +209,7 @@
     <div class="right">
       <span class="coins-badge">🪙 <span id="me-coins">0</span></span>
       <a class="admin-link" href="/admin.html" id="admin-link" style="display:none">🛠️ Admin</a>
+      <button id="logout-btn" style="background:var(--panel2); color:var(--muted); border:1px solid var(--border); padding:7px 12px; font-size:12px;">Abmelden</button>
     </div>
   </header>
 
@@ -234,7 +251,10 @@
       </div>
 
       <div class="panel-box">
-        <h3>Meine Einsätze (diese Runde)</h3>
+        <h3 style="display:flex; align-items:center; justify-content:space-between;">
+          <span>Meine Einsätze (diese Runde)</span>
+          <button id="clear-bets-btn" style="background:transparent; color:var(--red-c); border:1px solid #4a2a2a; padding:4px 9px; font-size:11px; display:none;">Alle entfernen</button>
+        </h3>
         <div class="my-bets-list" id="my-bets">Noch keine Einsätze.</div>
       </div>
 
@@ -297,6 +317,7 @@ let currentState = null;
 let countdownTimer = null;
 let allUsers = [];
 let currentPrivateWith = null; // {id, name}
+let lastMyBets = [];
 
 const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 // Reihenfolge der Zahlen am europäischen Roulette-Kessel (für die 3D-Animation)
@@ -312,16 +333,35 @@ const appEl = document.getElementById('app');
 
 document.getElementById('login-btn').onclick = doLogin;
 document.getElementById('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('password-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('toggle-pw').onclick = () => {
+  const pwInput = document.getElementById('password-input');
+  const btn = document.getElementById('toggle-pw');
+  const showing = pwInput.type === 'text';
+  pwInput.type = showing ? 'password' : 'text';
+  btn.textContent = showing ? '👁' : '🙈';
+};
 
 async function doLogin() {
   const name = document.getElementById('name-input').value.trim();
-  if (!name) return;
-  const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
-  const data = await res.json();
-  if (data.error) return alert(data.error);
-  me = data.user;
-  localStorage.setItem('roulette_user', JSON.stringify(me));
-  showApp();
+  const password = document.getElementById('password-input').value;
+  if (!name || !password) return;
+  const loginBtn = document.getElementById('login-btn');
+  loginBtn.disabled = true;
+  try {
+    const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, password }) });
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('login-hint').textContent = '⚠️ ' + data.error;
+      document.getElementById('login-hint').style.color = '#ff8a8a';
+      return;
+    }
+    me = data.user;
+    localStorage.setItem('roulette_user', JSON.stringify(me));
+    showApp();
+  } finally {
+    loginBtn.disabled = false;
+  }
 }
 
 if (me) showApp();
@@ -331,10 +371,27 @@ function showApp() {
   appEl.classList.add('active');
   document.getElementById('me-coins').textContent = me.coins;
   if (me.isAdmin) document.getElementById('admin-link').style.display = 'inline';
+  document.getElementById('logout-btn').onclick = doLogout;
   buildNumberGrid();
   buildWheelPockets();
   connectSocket();
   setupChatUI();
+}
+
+function doLogout() {
+  if (socket) socket.disconnect();
+  localStorage.removeItem('roulette_user');
+  me = null;
+  currentState = null;
+  currentPrivateWith = null;
+  if (countdownTimer) clearInterval(countdownTimer);
+  appEl.classList.remove('active');
+  loginScreen.style.display = 'flex';
+  document.getElementById('name-input').value = '';
+  document.getElementById('password-input').value = '';
+  document.getElementById('login-hint').textContent = 'Neuer Name → Account wird mit diesem Passwort angelegt.';
+  document.getElementById('login-hint').style.color = '';
+  document.getElementById('admin-link').style.display = 'none';
 }
 
 function buildNumberGrid() {
@@ -542,6 +599,7 @@ function renderState(state) {
   }
 
   startCountdown(state.ends_at);
+  renderMyBets(lastMyBets);
 
   if (wasResultJustIn) {
     // kleine Verzögerung damit Server die history aktualisieren konnte
@@ -564,13 +622,28 @@ function startCountdown(endsAt) {
 }
 
 function renderMyBets(bets) {
+  lastMyBets = bets || [];
   const box = document.getElementById('my-bets');
-  if (!bets || bets.length === 0) { box.innerHTML = 'Noch keine Einsätze.'; return; }
+  const clearBtn = document.getElementById('clear-bets-btn');
+  if (!bets || bets.length === 0) {
+    box.innerHTML = 'Noch keine Einsätze.';
+    clearBtn.style.display = 'none';
+    return;
+  }
   const labelMap = { red: '🔴 Rot', black: '⚫ Schwarz', odd: 'Ungerade', even: 'Gerade', low: '1–18', high: '19–36' };
-  box.innerHTML = bets.map(b => {
+  const canRemove = currentState && currentState.phase === 'betting';
+  box.innerHTML = bets.map((b, i) => {
     const label = b.type === 'number' ? `Zahl ${b.value}` : labelMap[b.type];
-    return `<div>${label} — ${b.amount} 🪙</div>`;
+    return `
+      <div class="my-bet-row">
+        <span>${label} — ${b.amount} 🪙</span>
+        ${canRemove ? `<button class="remove-bet" data-index="${i}" title="Einsatz entfernen">✕</button>` : ''}
+      </div>`;
   }).join('');
+  box.querySelectorAll('.remove-bet').forEach(btn => {
+    btn.onclick = () => socket.emit('roulette:removeBet', { index: parseInt(btn.dataset.index, 10) });
+  });
+  clearBtn.style.display = (canRemove && bets.length > 1) ? 'inline-block' : 'none';
 }
 
 function renderHistory(history) {
@@ -583,6 +656,8 @@ function renderHistory(history) {
 /* ============ CHAT ============ */
 
 function setupChatUI() {
+  document.getElementById('clear-bets-btn').onclick = () => socket.emit('roulette:removeBet', {});
+
   document.getElementById('tab-global').onclick = () => switchChatTab('global');
   document.getElementById('tab-private').onclick = () => switchChatTab('private');
 

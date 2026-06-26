@@ -7,6 +7,7 @@ from threading import Lock
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room
+from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'db.json')
@@ -118,26 +119,46 @@ def admin_page():
     return send_from_directory('templates', 'admin.html')
 
 
+def public_user(u):
+    return {"id": u['id'], "name": u['name'], "coins": u['coins'], "isAdmin": u['isAdmin']}
+
+
 @app.route('/api/login', methods=['POST'])
 def login():
-    name = (request.json or {}).get('name', '').strip()
+    data = request.json or {}
+    name = (data.get('name') or '').strip()
+    password = data.get('password') or ''
+
     if not name or len(name) > 24:
         return jsonify({"error": "Ungültiger Name"}), 400
+    if not password or len(password) < 4:
+        return jsonify({"error": "Passwort muss mindestens 4 Zeichen haben"}), 400
 
     with db_lock:
         db = load_db()
         user = get_user_by_name(db, name)
+
         if not user:
+            # Neuer Benutzer -> Account wird mit diesem Passwort angelegt
             user = {
                 "id": uuid.uuid4().hex[:10],
                 "name": name,
                 "coins": START_COINS,
                 "isAdmin": name.lower() in ADMIN_NAMES,
+                "password_hash": generate_password_hash(password),
             }
             db['users'].append(user)
             add_transaction(db, user['id'], user['name'], START_COINS, "Startguthaben")
             save_db(db)
-    return jsonify({"user": user})
+        elif not user.get('password_hash'):
+            # Migration: älterer Account ohne Passwort -> jetzt damit absichern
+            user['password_hash'] = generate_password_hash(password)
+            save_db(db)
+        else:
+            if not check_password_hash(user['password_hash'], password):
+                return jsonify({"error": "Falsches Passwort"}), 401
+
+    return jsonify({"user": public_user(user)})
 
 
 def public_users(db):
@@ -248,6 +269,54 @@ def on_bet(data):
         roulette['bets'].setdefault(me['userId'], []).append(
             {"type": bet_type, "value": value, "amount": amount}
         )
+
+    emit('roulette:coins', new_coins)
+    emit('roulette:myBets', my_bets_payload(me['userId']))
+    socketio.emit('roulette:state', public_roulette_state(), room='global')
+    broadcast_users()
+
+
+@socketio.on('roulette:removeBet')
+def on_remove_bet(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+
+    with roulette_lock:
+        if roulette['phase'] != 'betting':
+            emit('roulette:error', "Einsätze können nur während der Setzphase entfernt werden.")
+            return
+        user_bets = roulette['bets'].get(me['userId'], [])
+        index = (data or {}).get('index')
+
+        if index is None:
+            # Alle Einsätze dieser Runde zurücknehmen
+            removed = user_bets
+            roulette['bets'][me['userId']] = []
+        else:
+            try:
+                index = int(index)
+            except (TypeError, ValueError):
+                return
+            if not (0 <= index < len(user_bets)):
+                emit('roulette:error', "Einsatz nicht gefunden.")
+                return
+            removed = [user_bets.pop(index)]
+
+    refund_total = sum(b['amount'] for b in removed)
+    if refund_total <= 0:
+        return
+
+    with db_lock:
+        db = load_db()
+        user = get_user(db, me['userId'])
+        if not user:
+            return
+        user['coins'] += refund_total
+        for b in removed:
+            add_transaction(db, user['id'], user['name'], b['amount'], f"Einsatz zurückgenommen ({b['type']} {b['value']})")
+        save_db(db)
+        new_coins = user['coins']
 
     emit('roulette:coins', new_coins)
     emit('roulette:myBets', my_bets_payload(me['userId']))
@@ -445,7 +514,7 @@ def admin_users():
         return jsonify({"error": "Kein Zugriff"}), 403
     with db_lock:
         db = load_db()
-    return jsonify(db['users'])
+    return jsonify([public_user(u) for u in db['users']])
 
 
 @app.route('/api/admin/transactions')
