@@ -146,9 +146,6 @@ def durak_page():
     return send_from_directory('templates', 'durak.html')
 
 
-@app.route('/durak.html')
-def durak_page():
-    return send_from_directory('templates', 'durak.html')
 
 
 def public_user(u):
