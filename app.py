@@ -38,6 +38,8 @@ DEFAULT_DB = {
     "private_chats": {},  # key "id1_id2" (sortiert) -> [messages]
     "settings": dict(DEFAULT_SETTINGS),
     "coin_history": [],  # Snapshots {ts, total, top:[{name,coins}]}
+    "durak_games": [],  # aktive Spiele {id, players:[{id,name,coins_bet}], state, deck, table, ...}
+    "durak_stats": {},  # userId -> {wins, losses}
 }
 
 
@@ -54,6 +56,8 @@ def load_db():
     for k, v in DEFAULT_SETTINGS.items():
         db['settings'].setdefault(k, v)
     db.setdefault('coin_history', [])
+    db.setdefault('durak_games', [])
+    db.setdefault('durak_stats', {})
     return db
 
 
@@ -135,6 +139,16 @@ def admin_page():
 @app.route('/dashboard.html')
 def dashboard_page():
     return send_from_directory('templates', 'dashboard.html')
+
+
+@app.route('/durak.html')
+def durak_page():
+    return send_from_directory('templates', 'durak.html')
+
+
+@app.route('/durak.html')
+def durak_page():
+    return send_from_directory('templates', 'durak.html')
 
 
 def public_user(u):
@@ -463,7 +477,370 @@ def on_chat_history(data):
             })
 
 
-# ============ ROULETTE GAME LOOP ============
+# ============ DURAK CARD GAME ============
+
+SUITS = ['♠', '♣', '♥', '♦']
+RANKS = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+RANK_ORDER = {'6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
+
+def make_deck():
+    """Erstelle ein 36er-Deck (6 bis Ace)"""
+    return [{'suit': s, 'rank': r} for s in SUITS for r in RANKS]
+
+def card_to_str(card):
+    return f"{card['rank']}{card['suit']}"
+
+def str_to_card(s):
+    if len(s) < 2:
+        return None
+    suit = s[-1]
+    rank = s[:-1]
+    if suit in SUITS and rank in RANKS:
+        return {'suit': suit, 'rank': rank}
+    return None
+
+def can_beat(attacker_card, defender_card, trump_suit):
+    """Kann defender_card die attacker_card schlagen?"""
+    if defender_card['suit'] == trump_suit and attacker_card['suit'] != trump_suit:
+        return True
+    if defender_card['suit'] != attacker_card['suit']:
+        return False
+    return RANK_ORDER[defender_card['rank']] > RANK_ORDER[attacker_card['rank']]
+
+def can_play_as_attack(card, table, hand):
+    """Kann diese Karte als Angriff gespielt werden?"""
+    if not table:  # Erste Karte des Angriffs
+        return True
+    # Danach nur Karten mit Rängen die bereits auf dem Tisch liegen
+    valid_ranks = set()
+    for attack, defense in table:
+        valid_ranks.add(attack['rank'])
+        if defense:
+            valid_ranks.add(defense['rank'])
+    return card['rank'] in valid_ranks
+
+def create_game_object(game_id, players, bet_amount):
+    """Neues Durak-Spiel-Objekt erstellen"""
+    deck = make_deck()
+    import random
+    random.shuffle(deck)
+    
+    attacker_idx = 0
+    defender_idx = 1
+    
+    player_hands = {}
+    for i, p in enumerate(players):
+        player_hands[p['id']] = []
+    
+    # Karten verteilen (6 an jeden)
+    for _ in range(6):
+        for i, p in enumerate(players):
+            if deck:
+                player_hands[p['id']].append(deck.pop())
+    
+    return {
+        "id": game_id,
+        "players": players,  # [{id, name, coins_bet}]
+        "player_hands": player_hands,  # userId -> [cards]
+        "attacker_idx": attacker_idx,
+        "defender_idx": defender_idx,
+        "deck": deck,
+        "trump_card": deck[-1] if deck else None,
+        "table": [],  # [(attack_card, defense_card), ...]
+        "state": "playing",  # playing | game_over
+        "message": "",
+        "created_at": int(time.time() * 1000),
+        "bet_amount": bet_amount,
+    }
+
+def get_durak_game(db, game_id):
+    return next((g for g in db['durak_games'] if g['id'] == game_id), None)
+
+def draw_cards_to_player(game, player_idx, from_attacker=False):
+    """Verteile Karten vom Deck an Spieler"""
+    player_id = game['players'][player_idx]['id']
+    target_count = 6
+    draw_from_idx = game['attacker_idx'] if not from_attacker else game['defender_idx']
+    
+    while len(game['player_hands'][player_id]) < target_count and game['deck']:
+        game['player_hands'][player_id].append(game['deck'].pop())
+
+def get_public_game_state(game):
+    """Gebe Game-State für Clients zurück (keine verdeckten Karten)"""
+    return {
+        "id": game['id'],
+        "players": [{"id": p['id'], "name": p['name'], "card_count": len(game['player_hands'][p['id']])} for p in game['players']],
+        "attacker_idx": game['attacker_idx'],
+        "defender_idx": game['defender_idx'],
+        "table": game['table'],
+        "trump_card": game['trump_card'],
+        "state": game['state'],
+        "message": game['message'],
+    }
+
+def broadcast_durak_games():
+    """Alle verfügbaren Lobbys broadcasten"""
+    with db_lock:
+        db = load_db()
+        lobbies = [g for g in db['durak_games'] if g['state'] == 'waiting']
+    socketio.emit('durak:lobbies', [
+        {
+            "id": g['id'],
+            "players": g['players'],
+            "player_count": len(g['players']),
+            "max_players": 4,
+            "bet_amount": g['bet_amount'],
+        }
+        for g in lobbies
+    ])
+
+# ============ DURAK SOCKET EVENTS ============
+
+@socketio.on('durak:listLobbies')
+def on_durak_list_lobbies():
+    broadcast_durak_games()
+
+@socketio.on('durak:createGame')
+def on_durak_create_game(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    bet_amount = int((data or {}).get('bet_amount', 0))
+    if bet_amount <= 0:
+        return
+    
+    with db_lock:
+        db = load_db()
+        user = get_user(db, me['userId'])
+        if not user or user['coins'] < bet_amount:
+            emit('durak:error', "Nicht genug Coins für diesen Einsatz")
+            return
+        
+        game_id = uuid.uuid4().hex[:8]
+        game = create_game_object(game_id, [{"id": me['userId'], "name": me['name'], "coins_bet": bet_amount}], bet_amount)
+        game['state'] = 'waiting'
+        db['durak_games'].append(game)
+        save_db(db)
+    
+    broadcast_durak_games()
+    emit('durak:gameCreated', {"game_id": game_id})
+
+@socketio.on('durak:joinGame')
+def on_durak_join_game(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    game_id = (data or {}).get('game_id')
+    
+    with db_lock:
+        db = load_db()
+        game = get_durak_game(db, game_id)
+        if not game:
+            emit('durak:error', "Spiel nicht gefunden")
+            return
+        if game['state'] != 'waiting':
+            emit('durak:error', "Spiel hat bereits gestartet")
+            return
+        if len(game['players']) >= 4:
+            emit('durak:error', "Spiel ist voll")
+            return
+        
+        bet_amount = game['bet_amount']
+        user = get_user(db, me['userId'])
+        if not user or user['coins'] < bet_amount:
+            emit('durak:error', "Nicht genug Coins für diesen Einsatz")
+            return
+        
+        # Spieler zum Spiel hinzufügen
+        if not any(p['id'] == me['userId'] for p in game['players']):
+            game['players'].append({"id": me['userId'], "name": me['name'], "coins_bet": bet_amount})
+            game['player_hands'][me['userId']] = []
+            
+            # Karten verteilen wenn der 2. Spieler beitritt
+            if len(game['players']) >= 2:
+                deck = game['deck']
+                for _ in range(6):
+                    for p in game['players']:
+                        if deck:
+                            game['player_hands'][p['id']].append(deck.pop())
+                game['state'] = 'playing'
+            
+            save_db(db)
+    
+    broadcast_durak_games()
+    socketio.emit('durak:gameUpdated', {"game_id": game_id}, room=f"durak-{game_id}")
+    for p in game['players']:
+        for sid in sids_for_user(p['id']):
+            socketio.emit('durak:gameState', get_public_game_state(game), room=sid)
+            socketio.emit('durak:myHand', game['player_hands'][p['id']], room=sid)
+
+@socketio.on('durak:playCard')
+def on_durak_play_card(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    game_id = (data or {}).get('game_id')
+    card_str = (data or {}).get('card')
+    
+    card = str_to_card(card_str)
+    if not card:
+        return
+    
+    with db_lock:
+        db = load_db()
+        game = get_durak_game(db, game_id)
+        if not game or game['state'] != 'playing':
+            return
+        
+        player_idx = next((i for i, p in enumerate(game['players']) if p['id'] == me['userId']), None)
+        if player_idx is None:
+            return
+        
+        if player_idx != game['attacker_idx']:
+            emit('durak:error', "Du bist nicht der Angreifer")
+            return
+        
+        if card not in game['player_hands'][me['userId']]:
+            emit('durak:error', "Diese Karte hast du nicht")
+            return
+        
+        if len(game['table']) >= 6:
+            emit('durak:error', "Zu viele Karten auf dem Tisch")
+            return
+        
+        if not can_play_as_attack(card, game['table'], game['player_hands'][me['userId']]):
+            emit('durak:error', "Ungültige Angriffskarte")
+            return
+        
+        game['player_hands'][me['userId']].remove(card)
+        game['table'].append([card, None])
+        save_db(db)
+        
+        game['message'] = f"{me['name']} spielte {card_to_str(card)}"
+        broadcast_to_game_players(game)
+
+@socketio.on('durak:defendCard')
+def on_durak_defend_card(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    game_id = (data or {}).get('game_id')
+    attack_idx = int((data or {}).get('attack_idx', -1))
+    defend_card_str = (data or {}).get('card')
+    
+    defend_card = str_to_card(defend_card_str)
+    if not defend_card or attack_idx < 0:
+        return
+    
+    with db_lock:
+        db = load_db()
+        game = get_durak_game(db, game_id)
+        if not game or game['state'] != 'playing':
+            return
+        
+        player_idx = next((i for i, p in enumerate(game['players']) if p['id'] == me['userId']), None)
+        if player_idx is None or player_idx != game['defender_idx']:
+            emit('durak:error', "Du bist nicht der Verteidiger")
+            return
+        
+        if defend_card not in game['player_hands'][me['userId']]:
+            emit('durak:error', "Diese Karte hast du nicht")
+            return
+        
+        if attack_idx >= len(game['table']):
+            emit('durak:error', "Ungültiger Angriff")
+            return
+        
+        attack_card = game['table'][attack_idx][0]
+        if not can_beat(attack_card, defend_card, game['trump_card']['suit']):
+            emit('durak:error', "Diese Karte schlägt nicht")
+            return
+        
+        game['player_hands'][me['userId']].remove(defend_card)
+        game['table'][attack_idx][1] = defend_card
+        save_db(db)
+        
+        game['message'] = f"{me['name']} schlug ab mit {card_to_str(defend_card)}"
+        broadcast_to_game_players(game)
+
+@socketio.on('durak:takeCards')
+def on_durak_take_cards(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    game_id = (data or {}).get('game_id')
+    
+    with db_lock:
+        db = load_db()
+        game = get_durak_game(db, game_id)
+        if not game or game['state'] != 'playing':
+            return
+        
+        player_idx = next((i for i, p in enumerate(game['players']) if p['id'] == me['userId']), None)
+        if player_idx != game['defender_idx']:
+            return
+        
+        for attack, defend in game['table']:
+            game['player_hands'][me['userId']].append(attack)
+            if defend:
+                game['player_hands'][me['userId']].append(defend)
+        
+        game['table'] = []
+        game['message'] = f"{me['name']} hat abgenommen 😞"
+        
+        attacker = game['attacker_idx']
+        game['defender_idx'] = (game['defender_idx'] + 1) % len(game['players'])
+        game['attacker_idx'] = attacker
+        
+        check_game_end(game)
+        save_db(db)
+        broadcast_to_game_players(game)
+
+@socketio.on('durak:endRound')
+def on_durak_end_round(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    game_id = (data or {}).get('game_id')
+    
+    with db_lock:
+        db = load_db()
+        game = get_durak_game(db, game_id)
+        if not game or game['state'] != 'playing':
+            return
+        
+        if me['userId'] != game['players'][game['attacker_idx']]['id']:
+            return
+        
+        game['table'] = []
+        old_attacker = game['attacker_idx']
+        game['attacker_idx'] = game['defender_idx']
+        game['defender_idx'] = (game['defender_idx'] + 1) % len(game['players'])
+        
+        for i in range(len(game['players'])):
+            draw_cards_to_player(game, i)
+        
+        check_game_end(game)
+        save_db(db)
+        broadcast_to_game_players(game)
+
+def check_game_end(game):
+    """Prüfe ob jemand alle Karten aufgebraucht hat"""
+    players_with_cards = [p for p in game['players'] if game['player_hands'][p['id']]]
+    if len(players_with_cards) == 1:
+        game['state'] = 'game_over'
+        loser = players_with_cards[0]
+        game['message'] = f"{loser['name']} ist der DURAK! 🤦"
+
+def broadcast_to_game_players(game):
+    """Spiel-State an alle Spieler des Spiels schicken"""
+    state = get_public_game_state(game)
+    for p in game['players']:
+        for sid in sids_for_user(p['id']):
+            socketio.emit('durak:gameState', state, room=sid)
+            socketio.emit('durak:myHand', game['player_hands'][p['id']], room=sid)
+
+
 
 def payout_multiplier(bet_type):
     return {
@@ -812,6 +1189,516 @@ def admin_stats():
         "current_phase": roulette['phase'],
         "settings": get_settings(db),
     })
+
+
+# ============ DURAK (Kartenspiel, klassische Variante, 2-4 Spieler) ============
+
+DURAK_SUITS = ['S', 'H', 'D', 'C']
+DURAK_SUIT_SYMBOL = {'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣'}
+DURAK_RANK_LABEL = {6: '6', 7: '7', 8: '8', 9: '9', 10: '10', 11: 'J', 12: 'Q', 13: 'K', 14: 'A'}
+DURAK_MAX_SEATS = 4
+DURAK_HAND_SIZE = 6
+
+durak_lock = Lock()
+durak_tables = {}  # table_id -> table dict
+
+
+def durak_build_deck():
+    deck = [{"r": r, "s": s} for s in DURAK_SUITS for r in range(6, 15)]
+    random.shuffle(deck)
+    return deck
+
+
+def durak_card_label(card):
+    return f"{DURAK_RANK_LABEL[card['r']]}{DURAK_SUIT_SYMBOL[card['s']]}"
+
+
+def durak_card_eq(a, b):
+    return a['r'] == b['r'] and a['s'] == b['s']
+
+
+def durak_beats(attack, defense, trump_suit):
+    if defense['s'] == attack['s'] and defense['r'] > attack['r']:
+        return True
+    if defense['s'] == trump_suit and attack['s'] != trump_suit:
+        return True
+    return False
+
+
+def durak_new_table(host_id, host_name, stake):
+    table_id = uuid.uuid4().hex[:8]
+    table = {
+        "id": table_id,
+        "stake": stake,
+        "status": "waiting",  # waiting | playing | finished
+        "seats": [{"userId": host_id, "name": host_name}],
+        "hands": {host_id: []},
+        "deck": [],
+        "trump_suit": None,
+        "trump_card": None,
+        "table_cards": [],     # [{"attack": card, "defense": card|None}]
+        "order": [],
+        "attacker": None,
+        "defender": None,
+        "finished_order": [],
+        "durak": None,
+        "pot": stake,
+        "log": [f"{host_name} hat den Tisch eröffnet (Einsatz {stake} 🪙)."],
+    }
+    durak_tables[table_id] = table
+    return table
+
+
+def durak_public_table_list():
+    return [
+        {
+            "id": t['id'], "stake": t['stake'], "status": t['status'],
+            "players": [s['name'] for s in t['seats']],
+            "seatCount": len(t['seats']), "maxSeats": DURAK_MAX_SEATS,
+        }
+        for t in durak_tables.values() if t['status'] == 'waiting'
+    ]
+
+
+def durak_broadcast_table_list():
+    socketio.emit('durak:tablesUpdate', durak_public_table_list())
+
+
+def durak_active_players(table):
+    return [uid for uid in table['order'] if uid not in table['finished_order'] and uid != table['durak']]
+
+
+def durak_next_active_index(table, idx):
+    n = len(table['order'])
+    for i in range(1, n + 1):
+        cand = (idx + i) % n
+        uid = table['order'][cand]
+        if uid not in table['finished_order'] and uid != table['durak']:
+            return cand
+    return idx
+
+
+def durak_refill_hands(table, start_idx):
+    n = len(table['order'])
+    for i in range(n):
+        uid = table['order'][(start_idx + i) % n]
+        if uid in table['finished_order'] or uid == table['durak']:
+            continue
+        hand = table['hands'][uid]
+        while len(hand) < DURAK_HAND_SIZE and table['deck']:
+            hand.append(table['deck'].pop())
+
+
+def durak_check_finished(table):
+    for uid in list(table['order']):
+        if uid in table['finished_order'] or uid == table['durak']:
+            continue
+        if not table['deck'] and len(table['hands'][uid]) == 0:
+            table['finished_order'].append(uid)
+            name = next(s['name'] for s in table['seats'] if s['userId'] == uid)
+            table['log'].append(f"{name} hat keine Karten mehr und ist raus!")
+
+    active = durak_active_players(table)
+    if table['status'] == 'playing' and not table['deck'] and len(active) == 1:
+        table['durak'] = active[0]
+        table['status'] = 'finished'
+        durak_finish_game(table)
+
+
+def durak_finish_game(table):
+    name = next(s['name'] for s in table['seats'] if s['userId'] == table['durak'])
+    table['log'].append(f"😭 {name} ist der Durak und verliert den Einsatz.")
+    winners = list(table['finished_order'])
+    if not winners:
+        winners = [uid for uid in table['order'] if uid != table['durak']]
+    pot = table['pot']
+    share = pot // len(winners) if winners else 0
+    remainder = pot - share * len(winners)
+
+    with db_lock:
+        db = load_db()
+        for i, uid in enumerate(winners):
+            user = get_user(db, uid)
+            if not user:
+                continue
+            amount = share + (remainder if i == 0 else 0)
+            if amount > 0:
+                user['coins'] += amount
+                add_transaction(db, user['id'], user['name'], amount, "Durak-Gewinn")
+        save_db(db)
+    broadcast_users()
+    broadcast_dashboard()
+
+
+def durak_start_table(table):
+    table['status'] = 'playing'
+    table['order'] = [s['userId'] for s in table['seats']]
+    for uid in table['order']:
+        table['hands'][uid] = []
+    table['deck'] = durak_build_deck()
+    durak_refill_hands(table, 0)
+    table['trump_card'] = table['deck'][0] if table['deck'] else table['hands'][table['order'][0]][0]
+    table['trump_suit'] = table['trump_card']['s']
+    table['attacker'] = table['order'][0]
+    def_idx = durak_next_active_index(table, 0)
+    table['defender'] = table['order'][def_idx]
+    table['table_cards'] = []
+    names = [s['name'] for s in table['seats']]
+    table['log'].append(f"🎮 Spiel gestartet mit {', '.join(names)}. Trumpf: {durak_card_label(table['trump_card'])}")
+
+
+def durak_view_for(table, viewer_id):
+    seats_view = []
+    for s in table['seats']:
+        hand = table['hands'].get(s['userId'], [])
+        seats_view.append({
+            "userId": s['userId'], "name": s['name'],
+            "handCount": len(hand),
+            "hand": hand if s['userId'] == viewer_id else None,
+            "isAttacker": s['userId'] == table['attacker'],
+            "isDefender": s['userId'] == table['defender'],
+            "finished": s['userId'] in table['finished_order'],
+            "isDurak": s['userId'] == table['durak'],
+        })
+    return {
+        "id": table['id'],
+        "stake": table['stake'],
+        "pot": table['pot'],
+        "status": table['status'],
+        "seats": seats_view,
+        "deckCount": len(table['deck']),
+        "trumpCard": table['trump_card'],
+        "trumpSuit": table['trump_suit'],
+        "tableCards": table['table_cards'],
+        "attacker": table['attacker'],
+        "defender": table['defender'],
+        "durak": table['durak'],
+        "log": table['log'][-12:],
+        "youAreAttacker": viewer_id == table['attacker'],
+        "youAreDefender": viewer_id == table['defender'],
+    }
+
+
+def durak_broadcast_state(table):
+    for s in table['seats']:
+        view = durak_view_for(table, s['userId'])
+        for sid in sids_for_user(s['userId']):
+            socketio.emit('durak:state', view, room=sid)
+
+
+def durak_get_table_or_error(table_id):
+    table = durak_tables.get(table_id)
+    if not table:
+        emit('durak:error', "Tisch nicht gefunden.")
+        return None
+    return table
+
+
+@socketio.on('durak:listTables')
+def on_durak_list():
+    emit('durak:tablesUpdate', durak_public_table_list())
+
+
+@socketio.on('durak:createTable')
+def on_durak_create(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    try:
+        stake = int((data or {}).get('stake', 0))
+    except (TypeError, ValueError):
+        stake = 0
+    if stake <= 0:
+        emit('durak:error', "Ungültiger Einsatz.")
+        return
+
+    with db_lock:
+        db = load_db()
+        user = get_user(db, me['userId'])
+        if not user or user['coins'] < stake:
+            emit('durak:error', "Nicht genug Coins für diesen Einsatz.")
+            return
+        user['coins'] -= stake
+        add_transaction(db, user['id'], user['name'], -stake, "Durak-Einsatz (Tisch erstellt)")
+        save_db(db)
+        new_coins = user['coins']
+
+    with durak_lock:
+        table = durak_new_table(me['userId'], me['name'], stake)
+
+    emit('roulette:coins', new_coins)
+    emit('durak:joined', {"tableId": table['id']})
+    durak_broadcast_state(table)
+    durak_broadcast_table_list()
+    broadcast_users()
+
+
+@socketio.on('durak:joinTable')
+def on_durak_join(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    table_id = (data or {}).get('tableId')
+    with durak_lock:
+        table = durak_get_table_or_error(table_id)
+        if not table:
+            return
+        if table['status'] != 'waiting':
+            emit('durak:error', "Dieser Tisch läuft bereits oder ist beendet.")
+            return
+        if len(table['seats']) >= DURAK_MAX_SEATS:
+            emit('durak:error', "Tisch ist voll.")
+            return
+        if any(s['userId'] == me['userId'] for s in table['seats']):
+            emit('durak:error', "Du sitzt bereits an diesem Tisch.")
+            return
+        stake = table['stake']
+
+    with db_lock:
+        db = load_db()
+        user = get_user(db, me['userId'])
+        if not user or user['coins'] < stake:
+            emit('durak:error', "Nicht genug Coins für diesen Einsatz.")
+            return
+        user['coins'] -= stake
+        add_transaction(db, user['id'], user['name'], -stake, "Durak-Einsatz (Tisch beigetreten)")
+        save_db(db)
+        new_coins = user['coins']
+
+    with durak_lock:
+        table['seats'].append({"userId": me['userId'], "name": me['name']})
+        table['hands'][me['userId']] = []
+        table['pot'] += stake
+        table['log'].append(f"{me['name']} ist dem Tisch beigetreten ({len(table['seats'])}/{DURAK_MAX_SEATS}).")
+
+    emit('roulette:coins', new_coins)
+    emit('durak:joined', {"tableId": table['id']})
+    durak_broadcast_state(table)
+    durak_broadcast_table_list()
+    broadcast_users()
+
+
+@socketio.on('durak:leaveTable')
+def on_durak_leave(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    table_id = (data or {}).get('tableId')
+    with durak_lock:
+        table = durak_tables.get(table_id)
+        if not table:
+            return
+        if table['status'] != 'waiting':
+            # Nach Spielende einfach aus der Ansicht entfernen, kein Refund mehr nötig
+            if table['status'] == 'finished':
+                table['seats'] = [s for s in table['seats'] if s['userId'] != me['userId']]
+                if not table['seats']:
+                    durak_tables.pop(table_id, None)
+            return
+        was_host = table['seats'][0]['userId'] == me['userId']
+        table['seats'] = [s for s in table['seats'] if s['userId'] != me['userId']]
+        stake = table['stake']
+
+    with db_lock:
+        db = load_db()
+        user = get_user(db, me['userId'])
+        if user:
+            user['coins'] += stake
+            add_transaction(db, user['id'], user['name'], stake, "Durak-Einsatz zurückerstattet (Tisch verlassen)")
+            save_db(db)
+            new_coins = user['coins']
+            emit('roulette:coins', new_coins)
+
+    with durak_lock:
+        if not table['seats'] or was_host:
+            # Tisch ohne Gastgeber/Spieler -> auflösen, restliche Einsätze zurückerstatten
+            remaining = list(table['seats'])
+            table['seats'] = []
+            durak_tables.pop(table_id, None)
+            with db_lock:
+                db = load_db()
+                for s in remaining:
+                    u = get_user(db, s['userId'])
+                    if u:
+                        u['coins'] += stake
+                        add_transaction(db, u['id'], u['name'], stake, "Durak-Einsatz zurückerstattet (Tisch aufgelöst)")
+                save_db(db)
+            for s in remaining:
+                for sid in sids_for_user(s['userId']):
+                    socketio.emit('durak:tableClosed', {"tableId": table_id}, room=sid)
+
+    broadcast_users()
+    durak_broadcast_table_list()
+
+
+@socketio.on('durak:startGame')
+def on_durak_start(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    table_id = (data or {}).get('tableId')
+    with durak_lock:
+        table = durak_get_table_or_error(table_id)
+        if not table:
+            return
+        if table['seats'][0]['userId'] != me['userId']:
+            emit('durak:error', "Nur der Gastgeber kann das Spiel starten.")
+            return
+        if table['status'] != 'waiting':
+            return
+        if len(table['seats']) < 2:
+            emit('durak:error', "Mindestens 2 Spieler nötig.")
+            return
+        durak_start_table(table)
+
+    durak_broadcast_state(table)
+    durak_broadcast_table_list()
+
+
+@socketio.on('durak:playAttack')
+def on_durak_attack(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    table_id = (data or {}).get('tableId')
+    card = (data or {}).get('card')
+    with durak_lock:
+        table = durak_get_table_or_error(table_id)
+        if not table or table['status'] != 'playing':
+            return
+        if table['attacker'] != me['userId']:
+            emit('durak:error', "Du bist nicht am Zug (Angreifer).")
+            return
+        if table['table_cards'] and table['table_cards'][-1]['defense'] is None:
+            emit('durak:error', "Warte, bis die letzte Karte abgewehrt oder aufgenommen wurde.")
+            return
+        if len(table['table_cards']) >= DURAK_HAND_SIZE:
+            emit('durak:error', "Maximale Anzahl Angriffe für diese Runde erreicht.")
+            return
+        hand = table['hands'][me['userId']]
+        match_idx = next((i for i, c in enumerate(hand) if durak_card_eq(c, card)), None)
+        if match_idx is None:
+            emit('durak:error', "Diese Karte hast du nicht auf der Hand.")
+            return
+        if table['table_cards']:
+            ranks_on_table = {c['attack']['r'] for c in table['table_cards']} | {c['defense']['r'] for c in table['table_cards'] if c['defense']}
+            if card['r'] not in ranks_on_table:
+                emit('durak:error', "Diese Karte passt im Rang nicht zu den Karten auf dem Tisch.")
+                return
+        played = hand.pop(match_idx)
+        table['table_cards'].append({"attack": played, "defense": None})
+        table['log'].append(f"{me['name']} greift mit {durak_card_label(played)} an.")
+
+    durak_broadcast_state(table)
+
+
+@socketio.on('durak:playDefense')
+def on_durak_defense(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    table_id = (data or {}).get('tableId')
+    card = (data or {}).get('card')
+    with durak_lock:
+        table = durak_get_table_or_error(table_id)
+        if not table or table['status'] != 'playing':
+            return
+        if table['defender'] != me['userId']:
+            emit('durak:error', "Du bist nicht am Zug (Verteidiger).")
+            return
+        if not table['table_cards'] or table['table_cards'][-1]['defense'] is not None:
+            emit('durak:error', "Es gibt aktuell nichts abzuwehren.")
+            return
+        pending = table['table_cards'][-1]['attack']
+        hand = table['hands'][me['userId']]
+        match_idx = next((i for i, c in enumerate(hand) if durak_card_eq(c, card)), None)
+        if match_idx is None:
+            emit('durak:error', "Diese Karte hast du nicht auf der Hand.")
+            return
+        if not durak_beats(pending, card, table['trump_suit']):
+            emit('durak:error', "Diese Karte schlägt den Angriff nicht.")
+            return
+        played = hand.pop(match_idx)
+        table['table_cards'][-1]['defense'] = played
+        table['log'].append(f"{me['name']} wehrt mit {durak_card_label(played)} ab.")
+
+    durak_broadcast_state(table)
+
+
+@socketio.on('durak:takeCards')
+def on_durak_take(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    table_id = (data or {}).get('tableId')
+    with durak_lock:
+        table = durak_get_table_or_error(table_id)
+        if not table or table['status'] != 'playing':
+            return
+        if table['defender'] != me['userId']:
+            emit('durak:error', "Nur der Verteidiger kann Karten aufnehmen.")
+            return
+        if not table['table_cards']:
+            return
+
+        hand = table['hands'][me['userId']]
+        for pair in table['table_cards']:
+            hand.append(pair['attack'])
+            if pair['defense']:
+                hand.append(pair['defense'])
+        table['log'].append(f"{me['name']} nimmt alle Karten vom Tisch auf.")
+        table['table_cards'] = []
+
+        attacker_idx = table['order'].index(table['attacker'])
+        durak_refill_hands(table, attacker_idx)
+        durak_check_finished(table)
+
+        if table['status'] == 'playing':
+            defender_idx = table['order'].index(table['defender'])
+            new_attacker_idx = durak_next_active_index(table, defender_idx)
+            table['attacker'] = table['order'][new_attacker_idx]
+            table['defender'] = table['order'][durak_next_active_index(table, new_attacker_idx)]
+
+    durak_broadcast_state(table)
+    if table['status'] == 'finished':
+        durak_broadcast_table_list()
+        broadcast_users()
+
+
+@socketio.on('durak:pass')
+def on_durak_pass(data):
+    me = online.get(request.sid)
+    if not me:
+        return
+    table_id = (data or {}).get('tableId')
+    with durak_lock:
+        table = durak_get_table_or_error(table_id)
+        if not table or table['status'] != 'playing':
+            return
+        if table['attacker'] != me['userId']:
+            emit('durak:error', "Nur der Angreifer kann die Runde abschließen.")
+            return
+        if not table['table_cards'] or table['table_cards'][-1]['defense'] is None:
+            emit('durak:error', "Es gibt noch eine unverteidigte Karte.")
+            return
+
+        table['log'].append(f"{me['name']} schließt den Angriff ab — alle Karten wurden abgewehrt.")
+        table['table_cards'] = []
+
+        attacker_idx = table['order'].index(table['attacker'])
+        durak_refill_hands(table, attacker_idx)
+        durak_check_finished(table)
+
+        if table['status'] == 'playing':
+            defender_idx = table['order'].index(table['defender'])
+            new_attacker_idx = defender_idx
+            table['attacker'] = table['order'][new_attacker_idx]
+            table['defender'] = table['order'][durak_next_active_index(table, new_attacker_idx)]
+
+    durak_broadcast_state(table)
+    if table['status'] == 'finished':
+        durak_broadcast_table_list()
+        broadcast_users()
 
 
 if __name__ == '__main__':
