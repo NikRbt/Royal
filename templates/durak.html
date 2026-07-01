@@ -180,6 +180,7 @@ function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&l
 function connectSocket() {
   socket = io();
   socket.on('connect', () => {
+    socket.emit('identify', me.id);
     showLobby();
     socket.emit('durak:listLobbies');
   });

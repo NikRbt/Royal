@@ -1,0 +1,384 @@
+{
+  "users": [
+    {
+      "id": "a808544cf8",
+      "name": "duraktest",
+      "coins": 1000,
+      "isAdmin": false,
+      "password_hash": "scrypt:32768:8:1$ClRTv4tU7rCJJOyL$b291533edf8fd49ccb8474f4d2d83bb26e3f14b5901448fc0be1e1f0bf4ab2d445e4c2bb36f04e83c1bb40a15786b0eb5e032b8c7c39f37654cb8a833d6696ef"
+    },
+    {
+      "id": "acc20b6a0b",
+      "name": "nik",
+      "coins": 1000,
+      "isAdmin": false,
+      "password_hash": "scrypt:32768:8:1$AUaZN00TbFPIjbV7$46baa20a93cc251820601ae948b9091b44f1c3f7b4fe2195546503a207c77970b1e67f224aebbde811df384179a424ae2b127935903ba67ac3dbbbff2fceb0a8"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "df05e143",
+      "userId": "a808544cf8",
+      "name": "duraktest",
+      "amount": 1000,
+      "reason": "Startguthaben",
+      "ts": 1782886290246
+    },
+    {
+      "id": "8449c4d0",
+      "userId": "acc20b6a0b",
+      "name": "nik",
+      "amount": 1000,
+      "reason": "Startguthaben",
+      "ts": 1782886394921
+    }
+  ],
+  "round_history": [
+    {
+      "number": 22,
+      "color": "black",
+      "ts": 1782886221472
+    },
+    {
+      "number": 30,
+      "color": "red",
+      "ts": 1782886244485
+    },
+    {
+      "number": 34,
+      "color": "red",
+      "ts": 1782886267497
+    },
+    {
+      "number": 16,
+      "color": "red",
+      "ts": 1782886290513
+    },
+    {
+      "number": 23,
+      "color": "red",
+      "ts": 1782886313526
+    },
+    {
+      "number": 22,
+      "color": "black",
+      "ts": 1782886336540
+    },
+    {
+      "number": 22,
+      "color": "black",
+      "ts": 1782886359552
+    },
+    {
+      "number": 24,
+      "color": "black",
+      "ts": 1782886382565
+    },
+    {
+      "number": 25,
+      "color": "red",
+      "ts": 1782886405581
+    },
+    {
+      "number": 20,
+      "color": "black",
+      "ts": 1782886428595
+    },
+    {
+      "number": 6,
+      "color": "black",
+      "ts": 1782886451615
+    }
+  ],
+  "global_chat": [],
+  "private_chats": {},
+  "settings": {
+    "betting_seconds": 15,
+    "spin_seconds": 3,
+    "result_seconds": 5,
+    "start_coins": 1000
+  },
+  "coin_history": [
+    {
+      "ts": 1782886221472,
+      "total": 0,
+      "top": []
+    },
+    {
+      "ts": 1782886244485,
+      "total": 0,
+      "top": []
+    },
+    {
+      "ts": 1782886267497,
+      "total": 0,
+      "top": []
+    },
+    {
+      "ts": 1782886290513,
+      "total": 1000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782886313526,
+      "total": 1000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782886336540,
+      "total": 1000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782886359552,
+      "total": 1000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782886382565,
+      "total": 1000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782886405581,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782886428595,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782886451615,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    }
+  ],
+  "durak_games": [
+    {
+      "id": "38b89708",
+      "players": [
+        {
+          "id": "acc20b6a0b",
+          "name": "nik",
+          "coins_bet": 50
+        }
+      ],
+      "player_hands": {
+        "acc20b6a0b": [
+          {
+            "suit": "♦",
+            "rank": "Q"
+          },
+          {
+            "suit": "♥",
+            "rank": "Q"
+          },
+          {
+            "suit": "♥",
+            "rank": "K"
+          },
+          {
+            "suit": "♦",
+            "rank": "9"
+          },
+          {
+            "suit": "♠",
+            "rank": "K"
+          },
+          {
+            "suit": "♠",
+            "rank": "Q"
+          }
+        ]
+      },
+      "attacker_idx": 0,
+      "defender_idx": 1,
+      "deck": [
+        {
+          "suit": "♥",
+          "rank": "9"
+        },
+        {
+          "suit": "♣",
+          "rank": "8"
+        },
+        {
+          "suit": "♦",
+          "rank": "6"
+        },
+        {
+          "suit": "♦",
+          "rank": "K"
+        },
+        {
+          "suit": "♣",
+          "rank": "6"
+        },
+        {
+          "suit": "♣",
+          "rank": "A"
+        },
+        {
+          "suit": "♣",
+          "rank": "K"
+        },
+        {
+          "suit": "♠",
+          "rank": "9"
+        },
+        {
+          "suit": "♦",
+          "rank": "8"
+        },
+        {
+          "suit": "♥",
+          "rank": "10"
+        },
+        {
+          "suit": "♥",
+          "rank": "7"
+        },
+        {
+          "suit": "♥",
+          "rank": "8"
+        },
+        {
+          "suit": "♠",
+          "rank": "10"
+        },
+        {
+          "suit": "♥",
+          "rank": "A"
+        },
+        {
+          "suit": "♣",
+          "rank": "J"
+        },
+        {
+          "suit": "♣",
+          "rank": "10"
+        },
+        {
+          "suit": "♠",
+          "rank": "6"
+        },
+        {
+          "suit": "♣",
+          "rank": "9"
+        },
+        {
+          "suit": "♦",
+          "rank": "10"
+        },
+        {
+          "suit": "♣",
+          "rank": "7"
+        },
+        {
+          "suit": "♥",
+          "rank": "J"
+        },
+        {
+          "suit": "♥",
+          "rank": "6"
+        },
+        {
+          "suit": "♠",
+          "rank": "J"
+        },
+        {
+          "suit": "♠",
+          "rank": "8"
+        },
+        {
+          "suit": "♦",
+          "rank": "7"
+        },
+        {
+          "suit": "♦",
+          "rank": "A"
+        },
+        {
+          "suit": "♠",
+          "rank": "7"
+        },
+        {
+          "suit": "♣",
+          "rank": "Q"
+        },
+        {
+          "suit": "♠",
+          "rank": "A"
+        },
+        {
+          "suit": "♦",
+          "rank": "J"
+        }
+      ],
+      "trump_card": {
+        "suit": "♦",
+        "rank": "J"
+      },
+      "table": [],
+      "state": "waiting",
+      "message": "",
+      "created_at": 1782886400136,
+      "bet_amount": 50
+    }
+  ],
+  "durak_stats": {}
+}
