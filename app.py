@@ -31,6 +31,7 @@ MAX_COIN_HISTORY = 300
 db_lock = Lock()
 
 DEFAULT_DB = {
+    "bj_games": [],  # aktive Blackjack-Spiele {id, players: [{id, name, hand, bet, state}], deck, ...}
     "users": [],
     "transactions": [],
     "round_history": [],  # letzte Ergebnisse {number, color, ts}
@@ -1704,3 +1705,110 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))
     print(f"✅ Roulette App läuft auf http://localhost:{port}")
     socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
+
+# ============ BLACKJACK ============
+
+def bj_build_deck():
+    suits = ['♠', '♣', '♥', '♦']
+    ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+    deck = [{'s': s, 'r': r} for s in suits for r in ranks]
+    random.shuffle(deck)
+    return deck
+
+def calc_score(hand):
+    score = 0
+    aces = 0
+    for card in hand:
+        r = card['r']
+        if r in ['J', 'Q', 'K']: score += 10
+        elif r == 'A': score += 11; aces += 1
+        else: score += int(r)
+    while score > 21 and aces:
+        score -= 10
+        aces -= 1
+    return score
+
+@socketio.on('bj:createGame')
+def on_bj_create(data):
+    me = online.get(request.sid)
+    if not me: return
+    bet = int(data.get('bet', 10))
+    
+    with db_lock:
+        db = load_db()
+        user = get_user(db, me['userId'])
+        if not user or user['coins'] < bet:
+            emit('bj:error', "Nicht genug Coins")
+            return
+        user['coins'] -= bet
+        save_db(db)
+
+    game = {
+        "id": uuid.uuid4().hex[:8],
+        "player": {"id": me['userId'], "name": me['name'], "hand": [], "bet": bet, "status": "playing"},
+        "dealer": [],
+        "deck": bj_build_deck(),
+        "state": "playing"
+    }
+    # Initialer Deal
+    game['player']['hand'] = [game['deck'].pop(), game['deck'].pop()]
+    game['dealer'] = [game['deck'].pop(), game['deck'].pop()]
+    
+    with db_lock:
+        db = load_db()
+        db['bj_games'].append(game)
+        save_db(db)
+    
+    emit('bj:gameState', game)
+
+@socketio.on('bj:hit')
+def on_bj_hit(data):
+    me = online.get(request.sid)
+    if not me: return
+    game_id = data.get('gameId')
+    
+    with db_lock:
+        db = load_db()
+        game = next((g for g in db['bj_games'] if g['id'] == game_id), None)
+        if not game or game['player']['id'] != me['userId']: return
+        
+        game['player']['hand'].append(game['deck'].pop())
+        if calc_score(game['player']['hand']) > 21:
+            game['player']['status'] = 'lost'
+            game['state'] = 'finished'
+            
+        save_db(db)
+    emit('bj:gameState', game)
+
+@socketio.on('bj:stand')
+def on_bj_stand(data):
+    me = online.get(request.sid)
+    if not me: return
+    game_id = data.get('gameId')
+    
+    with db_lock:
+        db = load_db()
+        game = next((g for g in db['bj_games'] if g['id'] == game_id), None)
+        if not game: return
+        
+        # Dealer spielt
+        while calc_score(game['dealer']) < 17:
+            game['dealer'].append(game['deck'].pop())
+            
+        p_score = calc_score(game['player']['hand'])
+        d_score = calc_score(game['dealer'])
+        
+        if d_score > 21 or p_score > d_score:
+            game['player']['status'] = 'won'
+            user = get_user(db, me['userId'])
+            user['coins'] += game['player']['bet'] * 2
+        elif p_score == d_score:
+            game['player']['status'] = 'tie'
+            user = get_user(db, me['userId'])
+            user['coins'] += game['player']['bet']
+        else:
+            game['player']['status'] = 'lost'
+            
+        game['state'] = 'finished'
+        save_db(db)
+    emit('bj:gameState', game)
