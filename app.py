@@ -31,7 +31,6 @@ MAX_COIN_HISTORY = 300
 db_lock = Lock()
 
 DEFAULT_DB = {
-    "bj_games": [],  # aktive Blackjack-Spiele {id, players: [{id, name, hand, bet, state}], deck, ...}
     "users": [],
     "transactions": [],
     "round_history": [],  # letzte Ergebnisse {number, color, ts}
@@ -39,6 +38,8 @@ DEFAULT_DB = {
     "private_chats": {},  # key "id1_id2" (sortiert) -> [messages]
     "settings": dict(DEFAULT_SETTINGS),
     "coin_history": [],  # Snapshots {ts, total, top:[{name,coins}]}
+    "durak_games": [],  # aktive Spiele
+    "durak_stats": {},  # userId -> {wins, losses}
 }
 
 
@@ -48,18 +49,15 @@ def load_db():
         return json.loads(json.dumps(DEFAULT_DB))
     with open(DB_PATH, 'r', encoding='utf-8') as f:
         db = json.load(f)
-        
-    # Einmalige Migrationen für bestehende Datenbanken
+    # Migration für ältere db.json-Dateien ohne neuere Felder
     db.setdefault('global_chat', [])
     db.setdefault('private_chats', {})
     db.setdefault('settings', dict(DEFAULT_SETTINGS))
     for k, v in DEFAULT_SETTINGS.items():
         db['settings'].setdefault(k, v)
     db.setdefault('coin_history', [])
-    
-    # 🃏 Blackjack hinzugefügt!
-    db.setdefault('bj_games', [])
-    
+    db.setdefault('durak_games', [])
+    db.setdefault('durak_stats', {})
     return db
 
 
@@ -105,7 +103,8 @@ def number_color(n):
     return "red" if n in RED_NUMBERS else "black"
 
 
-app = Flask(__name__, static_folder='static', template_folder='templates')
+# static_folder angepasst, template_folder deaktiviert, da Dateien flach liegen
+app = Flask(__name__, static_folder='.', template_folder='.')
 app.config['SECRET_KEY'] = 'roulette-secret'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
@@ -128,25 +127,25 @@ roulette = {
 roulette_lock = Lock()
 
 
+# 📁 HIER KORRIGIERT: send_from_directory nutzt jetzt BASE_DIR statt 'templates'
 @app.route('/')
 def index():
-    return send_from_directory('templates', 'index.html')
+    return send_from_directory(BASE_DIR, 'index.html')
 
 
 @app.route('/admin.html')
 def admin_page():
-    return send_from_directory('templates', 'admin.html')
+    return send_from_directory(BASE_DIR, 'admin.html')
 
 
 @app.route('/dashboard.html')
 def dashboard_page():
-    return send_from_directory('templates', 'dashboard.html')
-
-@app.route('/blackjack.html')
-def blackjack_page():
-    return send_from_directory(BASE_DIR, 'blackjack.html')
+    return send_from_directory(BASE_DIR, 'dashboard.html')
 
 
+@app.route('/durak.html')
+def durak_page():
+    return send_from_directory(BASE_DIR, 'durak.html')
 
 
 def public_user(u):
@@ -169,7 +168,6 @@ def login():
         user = get_user_by_name(db, name)
 
         if not user:
-            # Neuer Benutzer -> Account wird mit diesem Passwort angelegt
             start_coins = get_settings(db)['start_coins']
             user = {
                 "id": uuid.uuid4().hex[:10],
@@ -182,7 +180,6 @@ def login():
             add_transaction(db, user['id'], user['name'], start_coins, "Startguthaben")
             save_db(db)
         elif not user.get('password_hash'):
-            # Migration: älterer Account ohne Passwort -> jetzt damit absichern
             user['password_hash'] = generate_password_hash(password)
             save_db(db)
         else:
@@ -356,7 +353,6 @@ def on_remove_bet(data):
         index = (data or {}).get('index')
 
         if index is None:
-            # Alle Einsätze dieser Runde zurücknehmen
             removed = user_bets
             roulette['bets'][me['userId']] = []
         else:
@@ -475,64 +471,66 @@ def on_chat_history(data):
             })
 
 
+# ============ ROULETTE ENGINE TIMERS ============
 
+def run_round_payouts(db, win_num):
+    color = number_color(win_num)
+    is_odd = (win_num % 2 != 0) and (win_num != 0)
+    is_even = (win_num % 2 == 0) and (win_num != 0)
+    is_low = (1 <= win_num <= 18)
+    is_high = (19 <= win_num <= 36)
 
-
-def payout_multiplier(bet_type):
-    return {
-        'number': 35,
-        'red': 1, 'black': 1,
-        'odd': 1, 'even': 1,
-        'low': 1, 'high': 1,
-    }.get(bet_type, 0)
-
-
-def bet_wins(bet, result_number):
-    color = number_color(result_number)
-    t, v = bet['type'], bet['value']
-    if t == 'number':
-        return v == result_number
-    if t == 'red':
-        return color == 'red'
-    if t == 'black':
-        return color == 'black'
-    if t == 'odd':
-        return result_number != 0 and result_number % 2 == 1
-    if t == 'even':
-        return result_number != 0 and result_number % 2 == 0
-    if t == 'low':
-        return 1 <= result_number <= 18
-    if t == 'high':
-        return 19 <= result_number <= 36
-    return False
-
-
-def run_round_payouts(result_number):
     with roulette_lock:
-        bets_snapshot = {uid: list(b) for uid, b in roulette['bets'].items()}
+        all_bets = dict(roulette['bets'])
 
-    with db_lock:
-        db = load_db()
-        for user_id, bets in bets_snapshot.items():
-            user = get_user(db, user_id)
-            if not user:
-                continue
-            total_win = 0
-            for bet in bets:
-                if bet_wins(bet, result_number):
-                    mult = payout_multiplier(bet['type'])
-                    win_amount = bet['amount'] * (mult + 1)  # Einsatz zurück + Gewinn
-                    total_win += win_amount
-            if total_win > 0:
-                user['coins'] += total_win
-                add_transaction(db, user['id'], user['name'], total_win, f"Gewinn Roulette (Zahl {result_number})")
+    for uid, bets in all_bets.items():
+        user = get_user(db, uid)
+        if not user:
+            continue
+        
+        total_won = 0
+        for b in bets:
+            b_type = b['type']
+            val = b['value']
+            amt = b['amount']
 
-        db['round_history'].append({
-            "number": result_number, "color": number_color(result_number), "ts": int(time.time() * 1000)
-        })
-        db['round_history'] = db['round_history'][-30:]
-        record_coin_snapshot(db)
-        save_db(db)
+            won = False
+            multiplier = 0
+
+            if b_type == 'number' and val == win_num:
+                won, multiplier = True, 35
+            elif b_type == 'red' and color == 'red':
+                won, multiplier = True, 1
+            elif b_type == 'black' and color == 'black':
+                won, multiplier = True, 1
+            elif b_type == 'odd' and is_odd:
+                won, multiplier = True, 1
+            elif b_type == 'even' and is_even:
+                won, multiplier = True, 1
+            elif b_type == 'low' and is_low:
+                won, multiplier = True, 1
+            elif b_type == 'high' and is_high:
+                won, multiplier = True, 1
+
+            if won:
+                payout = amt + (amt * multiplier)
+                total_won += payout
+
+        if total_won > 0:
+            user['coins'] += total_won
+            add_transaction(db, user['id'], user['name'], total_won, f"Gewinn Roulette (Runde #{roulette['round_id']})")
+            
+            for sid in sids_for_user(user['id']):
+                socketio.emit('roulette:coins', user['coins'], room=sid)
+
+    db['round_history'].append({
+        "number": win_num,
+        "color": color,
+        "ts": int(time.time() * 1000)
+    })
+    db['round_history'] = db['round_history'][-30:]
+    record_coin_snapshot(db)
+    save_db(db)
 
 
 def roulette_game_loop():
@@ -540,408 +538,58 @@ def roulette_game_loop():
         with db_lock:
             settings = get_settings(load_db())
 
-        # --- BETTING PHASE ---
+        # --- SETZPHASE ---
         with roulette_lock:
             roulette['phase'] = 'betting'
             roulette['bets'] = {}
             roulette['result_number'] = None
             roulette['ends_at'] = time.time() + settings['betting_seconds']
+
         socketio.emit('roulette:state', public_roulette_state(), room='global')
         time.sleep(settings['betting_seconds'])
 
-        with db_lock:
-            settings = get_settings(load_db())
-
-        # --- SPINNING PHASE ---
+        # --- ROLLPHASE ---
         result_number = random.randint(0, 36)
         with roulette_lock:
             roulette['phase'] = 'spinning'
             roulette['result_number'] = result_number
             roulette['ends_at'] = time.time() + settings['spin_seconds']
+
         socketio.emit('roulette:state', public_roulette_state(), room='global')
         time.sleep(settings['spin_seconds'])
 
+        # --- GEWINNAUSZAHLUNG ---
         with db_lock:
-            settings = get_settings(load_db())
+            db = load_db()
+            run_round_payouts(db, result_number)
 
-        # --- PAYOUT & RESULT PHASE ---
-        run_round_payouts(result_number)
         with roulette_lock:
             roulette['phase'] = 'result'
             roulette['ends_at'] = time.time() + settings['result_seconds']
-            roulette['round_id'] += 1
+
         socketio.emit('roulette:state', public_roulette_state(), room='global')
-        broadcast_users()
+        with db_lock:
+            db = load_db()
+            history = db['round_history'][-20:]
+        socketio.emit('roulette:history', history, room='global')
         broadcast_dashboard()
+        broadcast_users()
+        
         time.sleep(settings['result_seconds'])
-
-
-# ============ ADMIN API ============
-
-def require_admin():
-    user_id = request.headers.get('x-user-id')
-    with db_lock:
-        db = load_db()
-        user = get_user(db, user_id)
-    return user if user and user.get('isAdmin') else None
-
-
-@app.route('/api/dashboard')
-def dashboard_api():
-    with db_lock:
-        db = load_db()
-    return jsonify(dashboard_payload(db))
-
-
-@app.route('/api/admin/users')
-def admin_users():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    with db_lock:
-        db = load_db()
-    return jsonify([public_user(u) for u in db['users']])
-
-
-@app.route('/api/admin/transactions')
-def admin_transactions():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    with db_lock:
-        db = load_db()
-    return jsonify(list(reversed(db['transactions'][-200:])))
-
-
-@app.route('/api/admin/adjust-coins', methods=['POST'])
-def admin_adjust_coins():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    data = request.json or {}
-    user_id = data.get('userId')
-    amount = int(data.get('amount', 0))
-    reason = data.get('reason') or "Admin-Anpassung"
-
-    with db_lock:
-        db = load_db()
-        user = get_user(db, user_id)
-        if not user:
-            return jsonify({"error": "User nicht gefunden"}), 404
-        user['coins'] = max(0, user['coins'] + amount)
-        add_transaction(db, user_id, user['name'], amount, reason)
-        save_db(db)
-        new_coins = user['coins']
-    broadcast_users()
-    broadcast_dashboard()
-    return jsonify({"ok": True, "coins": new_coins})
-
-
-@app.route('/api/admin/settings', methods=['GET'])
-def admin_get_settings():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    with db_lock:
-        db = load_db()
-    return jsonify(get_settings(db))
-
-
-@app.route('/api/admin/settings', methods=['POST'])
-def admin_update_settings():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    data = request.json or {}
-    with db_lock:
-        db = load_db()
-        settings = db.setdefault('settings', dict(DEFAULT_SETTINGS))
-        for key in ('betting_seconds', 'spin_seconds', 'result_seconds'):
-            if key in data:
-                try:
-                    val = int(data[key])
-                    if 2 <= val <= 600:
-                        settings[key] = val
-                except (TypeError, ValueError):
-                    pass
-        if 'start_coins' in data:
-            try:
-                val = int(data['start_coins'])
-                if 0 <= val <= 1_000_000:
-                    settings['start_coins'] = val
-            except (TypeError, ValueError):
-                pass
-        save_db(db)
-        new_settings = get_settings(db)
-    return jsonify({"ok": True, "settings": new_settings})
-
-
-@app.route('/api/admin/set-admin', methods=['POST'])
-def admin_set_admin():
-    acting_admin = require_admin()
-    if not acting_admin:
-        return jsonify({"error": "Kein Zugriff"}), 403
-    data = request.json or {}
-    user_id = data.get('userId')
-    is_admin = bool(data.get('isAdmin'))
-
-    with db_lock:
-        db = load_db()
-        user = get_user(db, user_id)
-        if not user:
-            return jsonify({"error": "User nicht gefunden"}), 404
-        if user['id'] == acting_admin['id'] and not is_admin:
-            return jsonify({"error": "Du kannst dir selbst nicht die Admin-Rechte entziehen"}), 400
-        user['isAdmin'] = is_admin
-        save_db(db)
-    broadcast_users()
-    return jsonify({"ok": True})
-
-
-@app.route('/api/admin/reset-password', methods=['POST'])
-def admin_reset_password():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    data = request.json or {}
-    user_id = data.get('userId')
-    new_password = data.get('newPassword') or ''
-    if len(new_password) < 4:
-        return jsonify({"error": "Passwort muss mindestens 4 Zeichen haben"}), 400
-
-    with db_lock:
-        db = load_db()
-        user = get_user(db, user_id)
-        if not user:
-            return jsonify({"error": "User nicht gefunden"}), 404
-        user['password_hash'] = generate_password_hash(new_password)
-        save_db(db)
-    return jsonify({"ok": True})
-
-
-@app.route('/api/admin/rename-user', methods=['POST'])
-def admin_rename_user():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    data = request.json or {}
-    user_id = data.get('userId')
-    new_name = (data.get('newName') or '').strip()
-    if not new_name or len(new_name) > 24:
-        return jsonify({"error": "Ungültiger Name"}), 400
-
-    with db_lock:
-        db = load_db()
-        user = get_user(db, user_id)
-        if not user:
-            return jsonify({"error": "User nicht gefunden"}), 404
-        if get_user_by_name(db, new_name) and new_name.lower() != user['name'].lower():
-            return jsonify({"error": "Name bereits vergeben"}), 400
-        user['name'] = new_name
-        save_db(db)
-    broadcast_users()
-    broadcast_dashboard()
-    return jsonify({"ok": True})
-
-
-@app.route('/api/admin/kick-user', methods=['POST'])
-def admin_kick_user():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    data = request.json or {}
-    user_id = data.get('userId')
-    for sid in sids_for_user(user_id):
-        socketio.emit('account:kicked', {}, room=sid)
-        disconnect(sid=sid)
-    online_ids_before = list(online.keys())
-    for sid in online_ids_before:
-        if online.get(sid, {}).get('userId') == user_id:
-            online.pop(sid, None)
-    broadcast_users()
-    return jsonify({"ok": True})
-
-
-@app.route('/api/admin/delete-user', methods=['POST'])
-def admin_delete_user():
-    acting_admin = require_admin()
-    if not acting_admin:
-        return jsonify({"error": "Kein Zugriff"}), 403
-    data = request.json or {}
-    user_id = data.get('userId')
-    if user_id == acting_admin['id']:
-        return jsonify({"error": "Du kannst deinen eigenen Account hier nicht löschen"}), 400
-
-    with db_lock:
-        db = load_db()
-        before = len(db['users'])
-        db['users'] = [u for u in db['users'] if u['id'] != user_id]
-        if len(db['users']) == before:
-            return jsonify({"error": "User nicht gefunden"}), 404
-        save_db(db)
-
-    for sid in sids_for_user(user_id):
-        socketio.emit('account:deleted', {}, room=sid)
-        disconnect(sid=sid)
-    online_ids_before = list(online.keys())
-    for sid in online_ids_before:
-        if online.get(sid, {}).get('userId') == user_id:
-            online.pop(sid, None)
-    broadcast_users()
-    broadcast_dashboard()
-    return jsonify({"ok": True})
-
-
-@app.route('/api/admin/broadcast', methods=['POST'])
-def admin_broadcast():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    data = request.json or {}
-    text = (data.get('text') or '').strip()
-    if not text or len(text) > MAX_CHAT_LEN:
-        return jsonify({"error": "Ungültige Nachricht"}), 400
-
-    msg = {
-        "id": uuid.uuid4().hex[:8],
-        "userId": "system",
-        "name": "📢 Admin-Ansage",
-        "text": text,
-        "ts": int(time.time() * 1000),
-        "system": True,
-    }
-    with db_lock:
-        db = load_db()
-        db['global_chat'].append(msg)
-        db['global_chat'] = db['global_chat'][-MAX_GLOBAL_HISTORY:]
-        save_db(db)
-    socketio.emit('chat:global', msg, room='global')
-    return jsonify({"ok": True})
-
-
-@app.route('/api/admin/stats')
-def admin_stats():
-    if not require_admin():
-        return jsonify({"error": "Kein Zugriff"}), 403
-    with db_lock:
-        db = load_db()
-    return jsonify({
-        "total_users": len(db['users']),
-        "online_users": len({v['userId'] for v in online.values()}),
-        "total_coins": sum(u['coins'] for u in db['users']),
-        "total_transactions": len(db['transactions']),
-        "round_id": roulette['round_id'],
-        "current_phase": roulette['phase'],
-        "settings": get_settings(db),
-    })
-
-
-
-# ==========================================
-#          BLACKJACK SPIELLOGIK
-# ==========================================
-
-def bj_build_deck():
-    suits = ['♠', '♣', '♥', '♦']
-    ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
-    deck = [{'s': s, 'r': r} for s in suits for r in ranks]
-    random.shuffle(deck)
-    return deck
-
-def calc_score(hand):
-    score = 0
-    aces = 0
-    for card in hand:
-        r = card['r']
-        if r in ['J', 'Q', 'K']: score += 10
-        elif r == 'A': score += 11; aces += 1
-        else: score += int(r)
-    while score > 21 and aces:
-        score -= 10
-        aces -= 1
-    return score
-
-@socketio.on('bj:createGame')
-def on_bj_create(data):
-    me = online.get(request.sid)
-    if not me: 
-        return
-    
-    # Flexibler ID-Check (beugt KeyError vor)
-    my_id = me.get('id') or me.get('userId') or me.get('user_id')
-    bet = int(data.get('bet', 10))
-    
-    with db_lock:
-        db = load_db()
-        user = get_user(db, my_id) if 'get_user' in globals() else db.get('users', {}).get(my_id)
         
-        if not user or user.get('coins', 0) < bet:
-            emit('bj:error', "Nicht genug Coins!")
-            return
-            
-        user['coins'] -= bet
-        save_db(db)
+        with roulette_lock:
+            roulette['round_id'] += 1
 
-    game = {
-        "id": uuid.uuid4().hex[:8],
-        "player": {"id": my_id, "name": me.get('name', 'Spieler'), "hand": [], "bet": bet, "status": "playing"},
-        "dealer": [],
-        "deck": bj_build_deck(),
-        "state": "playing"
-    }
-    
-    # Karten austeilen
-    game['player']['hand'] = [game['deck'].pop(), game['deck'].pop()]
-    game['dealer'] = [game['deck'].pop(), game['deck'].pop()]
-    
-    with db_lock:
-        db = load_db()
-        db['bj_games'].append(game)
-        save_db(db)
-    
-    emit('bj:gameState', game)
 
-@socketio.on('bj:hit')
-def on_bj_hit(data):
-    me = online.get(request.sid)
-    if not me: return
-    my_id = me.get('id') or me.get('userId') or me.get('user_id')
-    game_id = data.get('gameId')
-    
-    with db_lock:
-        db = load_db()
-        game = next((g for g in db['bj_games'] if g['id'] == game_id), None)
-        if not game or game['player']['id'] != my_id: return
-        
-        game['player']['hand'].append(game['deck'].pop())
-        if calc_score(game['player']['hand']) > 21:
-            game['player']['status'] = 'lost'
-            game['state'] = 'finished'
-            
-        save_db(db)
-    emit('bj:gameState', game)
+# ============ MAIN APP RUNNER ============
 
-@socketio.on('bj:stand')
-def on_bj_stand(data):
-    me = online.get(request.sid)
-    if not me: return
-    my_id = me.get('id') or me.get('userId') or me.get('user_id')
-    game_id = data.get('gameId')
-    
+if __name__ == '__main__':
     with db_lock:
-        db = load_db()
-        game = next((g for g in db['bj_games'] if g['id'] == game_id), None)
-        if not game: return
-        
-        # Dealer zieht KI-Regel (muss bis einschließlich 16 ziehen)
-        while calc_score(game['dealer']) < 17:
-            game['dealer'].append(game['deck'].pop())
-            
-        p_score = calc_score(game['player']['hand'])
-        d_score = calc_score(game['dealer'])
-        
-        user = get_user(db, my_id) if 'get_user' in globals() else db.get('users', {}).get(my_id)
-        
-        if d_score > 21 or p_score > d_score:
-            game['player']['status'] = 'won'
-            if user: user['coins'] += game['player']['bet'] * 2
-        elif p_score == d_score:
-            game['player']['status'] = 'tie'
-            if user: user['coins'] += game['player']['bet']
-        else:
-            game['player']['status'] = 'lost'
-            
-        game['state'] = 'finished'
-        save_db(db)
-    emit('bj:gameState', game)
+        load_db()
+    
+    # Startet den Roulette-Loop im Hintergrund thread-safe
+    socketio.start_background_task(roulette_game_loop)
+    
+    # Port dynamisch für Render auslesen
+    port = int(os.environ.get('PORT', 3000))
+    socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)

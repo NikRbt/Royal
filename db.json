@@ -35,154 +35,154 @@
   ],
   "round_history": [
     {
-      "number": 28,
+      "number": 8,
       "color": "black",
-      "ts": 1782890725544
-    },
-    {
-      "number": 20,
-      "color": "black",
-      "ts": 1782890733763
-    },
-    {
-      "number": 22,
-      "color": "black",
-      "ts": 1782890748572
-    },
-    {
-      "number": 35,
-      "color": "black",
-      "ts": 1782890756787
-    },
-    {
-      "number": 1,
-      "color": "red",
-      "ts": 1782890771595
-    },
-    {
-      "number": 20,
-      "color": "black",
-      "ts": 1782890779810
-    },
-    {
-      "number": 35,
-      "color": "black",
-      "ts": 1782890794623
-    },
-    {
-      "number": 29,
-      "color": "black",
-      "ts": 1782890802835
-    },
-    {
-      "number": 15,
-      "color": "black",
-      "ts": 1782890817660
-    },
-    {
-      "number": 2,
-      "color": "black",
-      "ts": 1782890825863
-    },
-    {
-      "number": 4,
-      "color": "black",
-      "ts": 1782890840689
-    },
-    {
-      "number": 10,
-      "color": "black",
-      "ts": 1782890848893
-    },
-    {
-      "number": 15,
-      "color": "black",
-      "ts": 1782890863713
-    },
-    {
-      "number": 20,
-      "color": "black",
-      "ts": 1782890872008
+      "ts": 1782891125291
     },
     {
       "number": 5,
       "color": "red",
-      "ts": 1782890886737
+      "ts": 1782891140144
     },
     {
-      "number": 26,
+      "number": 15,
       "color": "black",
-      "ts": 1782890895035
-    },
-    {
-      "number": 6,
-      "color": "black",
-      "ts": 1782890909761
-    },
-    {
-      "number": 24,
-      "color": "black",
-      "ts": 1782890918071
-    },
-    {
-      "number": 3,
-      "color": "red",
-      "ts": 1782890932795
-    },
-    {
-      "number": 13,
-      "color": "black",
-      "ts": 1782890941096
-    },
-    {
-      "number": 17,
-      "color": "black",
-      "ts": 1782890955899
-    },
-    {
-      "number": 4,
-      "color": "black",
-      "ts": 1782890964120
-    },
-    {
-      "number": 9,
-      "color": "red",
-      "ts": 1782890978922
-    },
-    {
-      "number": 21,
-      "color": "red",
-      "ts": 1782890987143
-    },
-    {
-      "number": 30,
-      "color": "red",
-      "ts": 1782891001948
-    },
-    {
-      "number": 6,
-      "color": "black",
-      "ts": 1782891010168
+      "ts": 1782891148354
     },
     {
       "number": 19,
       "color": "red",
-      "ts": 1782891024974
+      "ts": 1782891163169
     },
     {
-      "number": 1,
+      "number": 16,
       "color": "red",
-      "ts": 1782891033192
-    },
-    {
-      "number": 34,
-      "color": "red",
-      "ts": 1782891047999
+      "ts": 1782891171387
     },
     {
       "number": 0,
       "color": "green",
-      "ts": 1782891056216
+      "ts": 1782891186198
+    },
+    {
+      "number": 2,
+      "color": "black",
+      "ts": 1782891194412
+    },
+    {
+      "number": 16,
+      "color": "red",
+      "ts": 1782891209231
+    },
+    {
+      "number": 28,
+      "color": "black",
+      "ts": 1782891217439
+    },
+    {
+      "number": 34,
+      "color": "red",
+      "ts": 1782891232260
+    },
+    {
+      "number": 19,
+      "color": "red",
+      "ts": 1782891240470
+    },
+    {
+      "number": 34,
+      "color": "red",
+      "ts": 1782891255289
+    },
+    {
+      "number": 0,
+      "color": "green",
+      "ts": 1782891263501
+    },
+    {
+      "number": 14,
+      "color": "red",
+      "ts": 1782891278317
+    },
+    {
+      "number": 19,
+      "color": "red",
+      "ts": 1782891286526
+    },
+    {
+      "number": 32,
+      "color": "red",
+      "ts": 1782891301345
+    },
+    {
+      "number": 12,
+      "color": "red",
+      "ts": 1782891309656
+    },
+    {
+      "number": 33,
+      "color": "black",
+      "ts": 1782891324370
+    },
+    {
+      "number": 28,
+      "color": "black",
+      "ts": 1782891332713
+    },
+    {
+      "number": 1,
+      "color": "red",
+      "ts": 1782891347394
+    },
+    {
+      "number": 5,
+      "color": "red",
+      "ts": 1782891355739
+    },
+    {
+      "number": 5,
+      "color": "red",
+      "ts": 1782891370419
+    },
+    {
+      "number": 17,
+      "color": "black",
+      "ts": 1782891378765
+    },
+    {
+      "number": 11,
+      "color": "black",
+      "ts": 1782891393445
+    },
+    {
+      "number": 24,
+      "color": "black",
+      "ts": 1782891401794
+    },
+    {
+      "number": 0,
+      "color": "green",
+      "ts": 1782891416471
+    },
+    {
+      "number": 7,
+      "color": "red",
+      "ts": 1782891424821
+    },
+    {
+      "number": 35,
+      "color": "black",
+      "ts": 1782891439496
+    },
+    {
+      "number": 22,
+      "color": "black",
+      "ts": 1782891447847
+    },
+    {
+      "number": 33,
+      "color": "black",
+      "ts": 1782891462525
     }
   ],
   "global_chat": [],
@@ -194,496 +194,6 @@
     "start_coins": 1000
   },
   "coin_history": [
-    {
-      "ts": 1782887617360,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887625499,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887640377,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887648515,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887663393,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887671532,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887686410,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887694548,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887709425,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887717567,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887732441,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887740583,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887755459,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887763600,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887778478,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887786627,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887801510,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887809647,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887824527,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887832663,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887847546,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887855682,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887870575,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887878703,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887893609,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887901723,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887916629,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887924748,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887939650,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887947770,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887962674,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887970786,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887985690,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782887993808,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
-    {
-      "ts": 1782888008728,
-      "total": 2000,
-      "top": [
-        {
-          "name": "duraktest",
-          "coins": 1000
-        },
-        {
-          "name": "nik",
-          "coins": 1000
-        }
-      ]
-    },
     {
       "ts": 1782888016829,
       "total": 2000,
@@ -4382,6 +3892,496 @@
     },
     {
       "ts": 1782891056216,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891071026,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891079240,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891094090,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891102263,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891117117,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891125291,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891140144,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891148354,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891163169,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891171387,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891186198,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891194412,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891209231,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891217439,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891232260,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891240470,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891255289,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891263501,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891278317,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891286526,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891301345,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891309656,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891324370,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891332713,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891347394,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891355739,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891370419,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891378765,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891393445,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891401794,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891416471,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891424821,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891439496,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891447847,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782891462525,
       "total": 2000,
       "top": [
         {
