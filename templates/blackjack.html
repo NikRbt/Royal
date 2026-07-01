@@ -18,7 +18,6 @@
   header a { color:var(--accent); text-decoration:none; font-size:13px; }
   main { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
-  #login-check { display:none; }
   #lobby-view { display:block; }
   #game-view { display:none; }
 
@@ -80,21 +79,17 @@
 </header>
 
 <main>
-  <div id="login-check" style="text-align:center; padding:40px; color:var(--muted);">Lädt...</div>
-
-  <!-- LOBBY VIEW (Einsatz wählen) -->
   <div id="lobby-view">
     <div class="lobby-header">
       <h1>💰 Blackjack Tisch</h1>
       <div class="create-game-box">
         <label>Dein Einsatz</label>
-        <input type="number" id="bet-amount" value="10" min="10" max="10000">
+        <input type="number" id="bet-amount" value="50" min="10" max="10000">
         <button onclick="startGame()">Spiel starten</button>
       </div>
     </div>
   </div>
 
-  <!-- GAME VIEW (Spielfeld) -->
   <div id="game-view">
     <div class="game-layout">
       <div class="game-board">
@@ -104,15 +99,11 @@
         </div>
 
         <div class="table-area">
-          <!-- DEALER BEREICH -->
           <div class="bj-row">
             <h3 id="dealer-score-label">Dealer: —</h3>
             <div class="card-container" id="dealer-cards"></div>
           </div>
-          
           <hr style="border:0; border-top:1px dashed var(--border); margin:10px 0;">
-
-          <!-- SPIELER BEREICH -->
           <div class="bj-row">
             <h3 id="player-score-label">Deine Hand: —</h3>
             <div class="card-container" id="player-cards"></div>
@@ -122,7 +113,7 @@
 
       <div class="game-side">
         <div class="message-box" id="bet-info">Einsatz: 0 Coins</div>
-        <div class="hint-box" id="turn-hint">Wähle Hit für eine weitere Karte oder Stand um zu halten.</div>
+        <div class="hint-box">Wähle Hit für eine weitere Karte oder Stand um zu halten.</div>
 
         <div class="actions-box">
           <h3>Optionen</h3>
@@ -157,23 +148,14 @@ function connectSocket() {
   socket.on('connect', () => {
     socket.emit('identify', me.id);
   });
-  
-  // Blackjack Event-Listener vom Backend
   socket.on('bj:gameState', renderGameState);
   socket.on('bj:error', showError);
 }
 
 function startGame() {
   const betInput = document.getElementById('bet-amount');
-  
-  if (!betInput) {
-    console.error("Element 'bet-amount' wurde nicht gefunden!");
-    showError("Fehler: Einsatz-Feld nicht gefunden.");
-    return;
-  }
-
+  if (!betInput) return;
   const bet = parseInt(betInput.value, 10);
-  
   if (isNaN(bet) || bet < 10) { 
     showError('Der Einsatz muss mindestens 10 Coins betragen.'); 
     return; 
@@ -199,75 +181,52 @@ function calcScore(hand) {
     else if (card.r === 'A') { score += 11; aces += 1; }
     else score += parseInt(card.r, 10);
   }
-  while (score > 21 && aces > 0) {
-    score -= 10;
-    aces -= 1;
-  }
+  while (score > 21 && aces > 0) { score -= 10; aces -= 1; }
   return score;
 }
 
 function generateCardHtml(card, hide = false) {
   if (hide) {
-    return `<div class="card-visual hidden-card">
-              <span class="card-rank">?</span>
-              <span class="card-suit">♣️</span>
-            </div>`;
+    return `<div class="card-visual hidden-card"><span class="card-rank">?</span><span class="card-suit">♣️</span></div>`;
   }
   const isRed = card.s === '♥' || card.s === '♦';
-  return `
-    <div class="card-visual ${isRed ? 'red' : 'black'}">
-      <span class="card-rank">${card.r}</span>
-      <span class="card-suit">${card.s}</span>
-    </div>
-  `;
+  return `<div class="card-visual ${isRed ? 'red' : 'black'}"><span class="card-rank">${card.r}</span><span class="card-suit">${card.s}</span></div>`;
 }
 
 function renderGameState(game) {
   if (!game) return;
   currentGameId = game.id;
 
-  // Views umschalten
   document.getElementById('lobby-view').style.display = 'none';
   document.getElementById('game-view').style.display = 'block';
-
-  // Einsatz anzeigen
   document.getElementById('bet-info').textContent = `Einsatz: ${game.player.bet} Coins`;
 
-  // Spieler-Karten rendern
   const pCardsDiv = document.getElementById('player-cards');
   pCardsDiv.innerHTML = game.player.hand.map(c => generateCardHtml(c)).join('');
   const pScore = calcScore(game.player.hand);
   document.getElementById('player-score-label').textContent = `Deine Hand: ${pScore}`;
 
-  // Dealer-Karten rendern
   const dCardsDiv = document.getElementById('dealer-cards');
   if (game.state === 'playing') {
-    // Wenn das Spiel läuft, sieht man traditionell nur die erste Karte des Dealers scharf
     dCardsDiv.innerHTML = generateCardHtml(game.dealer[0]) + generateCardHtml(null, true);
     document.getElementById('dealer-score-label').textContent = `Dealer: Sichtbar ${calcScore([game.dealer[0]])}`;
-    
     document.getElementById('game-message').textContent = 'Du bist am Zug!';
     document.getElementById('btn-hit').disabled = false;
     document.getElementById('btn-stand').disabled = false;
   } else {
-    // Spiel vorbei -> Alle Dealer Karten aufdecken
     dCardsDiv.innerHTML = game.dealer.map(c => generateCardHtml(c)).join('');
     const dScore = calcScore(game.dealer);
     document.getElementById('dealer-score-label').textContent = `Dealer: ${dScore}`;
-
-    // Status-Meldungen formatieren
     document.getElementById('btn-hit').disabled = true;
     document.getElementById('btn-stand').disabled = true;
 
-    let endMessage = "";
     if (game.player.status === 'won') {
-      endMessage = `🎉 Gewonnen! (+${game.player.bet * 2} Coins)`;
+      document.getElementById('game-message').textContent = `🎉 Gewonnen! (+${game.player.bet * 2} Coins)`;
     } else if (game.player.status === 'tie') {
-      endMessage = `🤝 Unentschieden (Einsatz zurück)`;
+      document.getElementById('game-message').textContent = `🤝 Unentschieden (Einsatz zurück)`;
     } else {
-      endMessage = `💥 Verloren! (Dealer gewinnt)`;
+      document.getElementById('game-message').textContent = `💥 Verloren! (Dealer gewinnt)`;
     }
-    document.getElementById('game-message').textContent = endMessage;
   }
 }
 
@@ -277,7 +236,6 @@ function backToLobby() {
   document.getElementById('game-view').style.display = 'none';
 }
 
-// Initialisieren
 connectSocket();
 </script>
 </body>
