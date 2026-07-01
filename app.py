@@ -141,10 +141,9 @@ def admin_page():
 def dashboard_page():
     return send_from_directory('templates', 'dashboard.html')
 
-
-@app.route('/durak.html')
-def durak_page():
-    return send_from_directory('templates', 'durak.html')
+@app.route('/blackjack.html')
+def blackjack_page():
+    return render_template('blackjack.html') # Stelle sicher, dass die Datei im 'templates' Ordner liegt
 
 
 
