@@ -36,6 +36,7 @@
   .lobby-card .info { font-size:12px; color:var(--muted); }
   .lobby-card .info div { margin-bottom:4px; }
   .lobby-card .join-btn { background:var(--accent); color:white; border:none; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; width:100%; margin-top:10px; }
+  .lobby-card .start-btn { background:var(--green); color:white; border:none; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; width:100%; margin-top:8px; }
 
   .game-layout { display:grid; grid-template-columns: 1fr 240px; gap:20px; }
   .game-board { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; }
@@ -59,10 +60,24 @@
 
   .my-hand-box { background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px; }
   .my-hand-box h3 { font-size:12px; color:var(--muted); text-transform:uppercase; margin:0 0 10px; }
-  .my-hand { display:flex; flex-wrap:wrap; gap:8px; }
-  .card-btn { width:50px; height:74px; border-radius:6px; border:2px solid var(--border); background:var(--panel); color:var(--text); font-weight:700; font-size:16px; cursor:pointer; transition:all .15s; }
-  .card-btn:hover { border-color:var(--accent); background:var(--panel2); }
-  .card-btn.selected { border-color:var(--gold); background:#332b14; }
+  .my-hand { display:flex; flex-wrap:wrap; gap:10px; }
+  .card-btn { width:70px; height:104px; border-radius:14px; border:2px solid var(--border); background:linear-gradient(135deg, #fffdf5 0%, #f7f1d0 100%); color:#161b22; font-weight:800; font-size:18px; cursor:pointer; transition:all .15s; box-shadow:0 8px 16px rgba(0,0,0,.25); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6px; position:relative; }
+  .card-btn:hover { transform:translateY(-3px); border-color:var(--accent); box-shadow:0 10px 18px rgba(91,140,255,.25); }
+  .card-btn.selected { border-color:var(--gold); box-shadow:0 0 0 2px rgba(255,200,87,.35), 0 10px 18px rgba(255,200,87,.25); transform:translateY(-4px); }
+  .card-btn.playable { border-color:var(--accent); }
+  .card-btn .card-rank { font-size:20px; line-height:1; }
+  .card-btn .card-suit { font-size:24px; margin-top:4px; }
+  .card-btn.red { color:#b42318; }
+  .card-btn.black { color:#161b22; }
+  .table-pair { display:flex; align-items:center; gap:8px; }
+  .card-visual { width:68px; height:100px; border-radius:12px; border:2px solid; display:flex; flex-direction:column; align-items:center; justify-content:center; font-weight:800; font-size:18px; box-shadow:0 8px 16px rgba(0,0,0,.25); }
+  .card-visual .card-rank { font-size:20px; line-height:1; }
+  .card-visual .card-suit { font-size:24px; margin-top:4px; }
+  .card-visual.red { background:linear-gradient(135deg, #ff6b6b 0%, #d64545 100%); border-color:#ffd5d5; color:white; }
+  .card-visual.black { background:linear-gradient(135deg, #2b2f38 0%, #1a1f26 100%); border-color:#7a8497; color:white; }
+  .card-visual.defended { opacity:0.7; }
+  .hint-box { background:rgba(91,140,255,.12); border:1px solid rgba(91,140,255,.28); border-radius:10px; padding:10px 12px; font-size:12px; color:#dfe8ff; margin-bottom:10px; }
+  .action-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
 
   .players-list { background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px; }
   .players-list h3 { font-size:12px; color:var(--muted); text-transform:uppercase; margin:0 0 10px; }
@@ -108,10 +123,10 @@
       <div class="create-game-box">
         <label>Einsatz pro Spieler</label>
         <input type="number" id="bet-amount" value="50" min="10" max="10000">
-        <button onclick="createGame()">Spiel erstellen</button>
+        <button onclick="createTable()">Tisch erstellen</button>
       </div>
     </div>
-    <h2 style="margin-bottom:16px; font-size:14px; color:var(--muted); text-transform:uppercase;">Verfügbare Spiele</h2>
+    <h2 style="margin-bottom:16px; font-size:14px; color:var(--muted); text-transform:uppercase;">Verfügbare Tische</h2>
     <div class="lobbies-grid" id="lobbies-grid"></div>
   </div>
 
@@ -139,6 +154,7 @@
 
       <div class="game-side">
         <div class="message-box" id="message-box">Warte auf andere Spieler...</div>
+        <div class="hint-box" id="turn-hint">Wähle eine Karte aus und lege sie direkt ab.</div>
 
         <div class="players-list">
           <h3>Spieler</h3>
@@ -147,8 +163,9 @@
 
         <div class="actions-box" id="actions-box">
           <h3>Aktionen</h3>
-          <button class="action-btn" id="action-end-round" style="display:none;">✅ Runde beenden</button>
-          <button class="action-btn danger" id="action-take" style="display:none;">📥 Karten aufnehmen</button>
+          <button class="action-btn" id="action-play" onclick="playSelectedCard()" disabled>🃏 Gewählte Karte legen</button>
+          <button class="action-btn danger" id="action-take" onclick="takeCards()" style="display:none;">📥 Karten aufnehmen</button>
+          <button class="action-btn" id="action-end-round" onclick="endRound()" style="display:none;">✅ Runde beenden</button>
           <button class="action-btn" onclick="backToLobby()">← Zurück</button>
         </div>
       </div>
@@ -164,9 +181,11 @@ const me = JSON.parse(localStorage.getItem('roulette_user') || 'null');
 if (!me) window.location.href = '/';
 
 let socket;
-let currentGame = null;
+let currentTableId = null;
 let currentGameState = null;
 let selectedCard = null;
+let selectedCardData = null;
+let currentMyHand = [];
 
 function showError(msg) {
   const toast = document.getElementById('error-toast');
@@ -182,91 +201,163 @@ function connectSocket() {
   socket.on('connect', () => {
     socket.emit('identify', me.id);
     showLobby();
-    socket.emit('durak:listLobbies');
+    socket.emit('durak:listTables');
   });
-  socket.on('durak:lobbies', renderLobbies);
+  socket.on('durak:tablesUpdate', renderLobbies);
   socket.on('durak:error', showError);
-  socket.on('durak:gameCreated', data => {
-    currentGame = data.game_id;
-    waitForGameStart();
+  socket.on('durak:joined', data => {
+    currentTableId = data.tableId;
+    showGameView();
   });
-  socket.on('durak:gameState', renderGameState);
-  socket.on('durak:myHand', renderMyHand);
+  socket.on('durak:state', renderGameState);
+  socket.on('durak:tableClosed', data => {
+    if (currentTableId === data.tableId) {
+      currentTableId = null;
+      currentGameState = null;
+      showLobby();
+    }
+  });
 }
 
 function showLobby() {
   document.getElementById('login-check').style.display = 'none';
   document.getElementById('lobby-view').style.display = 'block';
   document.getElementById('game-view').style.display = 'none';
-  socket.emit('durak:listLobbies');
+  if (socket) socket.emit('durak:listTables');
 }
 
-function renderLobbies(lobbies) {
+function renderLobbies(tables) {
   const grid = document.getElementById('lobbies-grid');
-  if (!lobbies.length) {
-    grid.innerHTML = '<p style="color:var(--muted);">Noch keine Spiele. Erstelle eines oben!</p>';
+  if (!tables.length) {
+    grid.innerHTML = '<p style="color:var(--muted);">Noch keine Tische. Erstelle einen neuen Tisch oben!</p>';
     return;
   }
-  grid.innerHTML = lobbies.map(lobby => `
+  grid.innerHTML = tables.map(table => `
     <div class="lobby-card">
-      <div class="name">Durak</div>
+      <div class="name">Durak Tisch</div>
       <div class="info">
-        <div>🎯 Spieler: ${lobby.player_count}/4</div>
-        <div>🪙 Einsatz: ${lobby.bet_amount}</div>
+        <div>👥 Spieler: ${table.seatCount}/${table.maxSeats}</div>
+        <div>🪙 Einsatz: ${table.stake}</div>
+        <div>🧑‍🤝‍🧑 ${table.players.join(', ') || 'Nur du'}</div>
       </div>
-      <button class="join-btn" onclick="joinGame('${lobby.id}')">Beitreten</button>
+      <button class="join-btn" onclick="joinTable('${table.id}')">Beitreten</button>
+      ${table.players.includes(me.name) ? '<button class="start-btn" onclick="startTable(\'' + table.id + '\')">Spiel starten</button>' : ''}
     </div>
   `).join('');
 }
 
-function createGame() {
-  const bet = parseInt(document.getElementById('bet-amount').value, 10);
-  if (bet < 10) { showError('Einsatz muss mindestens 10 sein'); return; }
-  socket.emit('durak:createGame', { bet_amount: bet });
+function createTable() {
+  const stake = parseInt(document.getElementById('bet-amount').value, 10);
+  if (stake < 10) { showError('Einsatz muss mindestens 10 sein'); return; }
+  socket.emit('durak:createTable', { stake });
 }
 
-function joinGame(gameId) {
-  socket.emit('durak:joinGame', { game_id: gameId });
-  currentGame = gameId;
-  waitForGameStart();
+function joinTable(tableId) {
+  socket.emit('durak:joinTable', { tableId });
+  currentTableId = tableId;
+  showGameView();
 }
 
-function waitForGameStart() {
+function startTable(tableId) {
+  socket.emit('durak:startGame', { tableId });
+}
+
+function showGameView() {
   document.getElementById('lobby-view').style.display = 'none';
   document.getElementById('game-view').style.display = 'block';
-  document.getElementById('message-box').textContent = '⏳ Warte auf andere Spieler...';
+  document.getElementById('message-box').textContent = '⏳ Warten auf Spielstart...';
+}
+
+function getMyRole(state) {
+  if (!state || !state.seats || !state.seats.length) return 'watcher';
+  const meSeat = state.seats.find(s => s.userId === me.id);
+  if (!meSeat) return 'watcher';
+  if (state.attacker === me.id) return 'attacker';
+  if (state.defender === me.id) return 'defender';
+  return 'watcher';
+}
+
+function getPendingAttackIndex(tableCards) {
+  for (let i = tableCards.length - 1; i >= 0; i--) {
+    if (!tableCards[i].defense) return i;
+  }
+  return -1;
+}
+
+function updateActionButtons(state) {
+  const playBtn = document.getElementById('action-play');
+  const takeBtn = document.getElementById('action-take');
+  const endBtn = document.getElementById('action-end-round');
+  const role = getMyRole(state);
+  const pendingAttack = getPendingAttackIndex(state.tableCards || []);
+
+  if (role === 'attacker') {
+    playBtn.disabled = !selectedCard;
+    playBtn.textContent = selectedCard ? '🃏 Gewählte Karte legen' : '🃏 Karte auswählen';
+    endBtn.style.display = (state.tableCards || []).length && state.tableCards.every(pair => pair.defense) ? 'block' : 'none';
+    takeBtn.style.display = 'none';
+  } else if (role === 'defender') {
+    playBtn.disabled = !selectedCard;
+    playBtn.textContent = pendingAttack >= 0 ? '🛡️ Gewählte Karte abwehren' : '🛡️ Karte auswählen';
+    endBtn.style.display = 'none';
+    takeBtn.style.display = (state.tableCards || []).length ? 'block' : 'none';
+  } else {
+    playBtn.disabled = true;
+    playBtn.textContent = '🃏 Nur am Zug';
+    endBtn.style.display = 'none';
+    takeBtn.style.display = 'none';
+  }
 }
 
 function renderGameState(state) {
   currentGameState = state;
-  document.getElementById('game-phase').textContent = state.state === 'playing' ? '🎮 Im Spiel' : '✅ Vorbei';
-  document.getElementById('game-message').textContent = state.message || 'Spielen...';
+  document.getElementById('game-phase').textContent = state.status === 'playing' ? '🎮 Im Spiel' : '✅ Vorbei';
+  const role = getMyRole(state);
+  const pendingAttack = getPendingAttackIndex(state.tableCards || []);
+  let turnText = state.log && state.log.length ? state.log[state.log.length - 1] : 'Spielen...';
 
-  const trumpCard = state.trump_card;
-  if (trumpCard) {
-    document.getElementById('trump-card').textContent = `${trumpCard.rank}${trumpCard.suit}`;
+  if (role === 'attacker') {
+    turnText = 'Du bist der Angreifer — wähle eine Karte und lege sie ab.';
+  } else if (role === 'defender') {
+    turnText = pendingAttack >= 0 ? 'Du bist der Verteidiger — wehre die offene Karte ab.' : 'Du bist der Verteidiger — warte auf den nächsten Angriff.';
+  } else if (state.seats && state.seats.length > 1) {
+    turnText = 'Du beobachtest gerade das Spiel.';
   }
 
-  renderTable(state.table);
-  renderPlayersInfo(state.players, state.attacker_idx, state.defender_idx);
+  document.getElementById('game-message').textContent = turnText;
+  document.getElementById('turn-hint').textContent = role === 'watcher' ? 'Du kannst nur zuschauen.' : 'Klicke auf eine Karte, dann auf „Gewählte Karte legen“.';
+
+  const trumpCard = state.trumpCard;
+  if (trumpCard) {
+    document.getElementById('trump-card').textContent = `${trumpCard.r}${trumpCard.s}`;
+  }
+
+  renderTable(state.tableCards || []);
+  renderPlayersInfo(state.seats || [], state.attacker, state.defender);
+  renderMyHand(state.seats.find(s => s.userId === me.id)?.hand || []);
+  updateActionButtons(state);
 }
 
-function renderTable(table) {
+function renderTable(tableCards) {
   const pairsDiv = document.getElementById('table-pairs');
-  if (!table.length) {
-    pairsDiv.innerHTML = '<p style="color:var(--muted); font-size:13px;">Tisch leer...</p>';
+  if (!tableCards.length) {
+    pairsDiv.innerHTML = '<p style="color:var(--muted); font-size:13px;">Tisch leer — der erste Angriff kann starten.</p>';
     return;
   }
-  pairsDiv.innerHTML = table.map((pair, i) => {
-    const [attack, defend] = pair;
-    const isRed = attack.suit === '♥' || attack.suit === '♦';
+  pairsDiv.innerHTML = tableCards.map((pair) => {
+    const attack = pair.attack;
+    const defend = pair.defense;
+    const isRed = attack.s === 'H' || attack.s === 'D';
+    const defendColor = defend && (defend.s === 'H' || defend.s === 'D') ? 'red' : 'black';
     return `
-      <div class="card-pair">
+      <div class="table-pair">
         <div class="card-visual ${isRed ? 'red' : 'black'}">
-          ${attack.rank}${attack.suit}
+          <span class="card-rank">${attack.r}</span>
+          <span class="card-suit">${attack.s}</span>
         </div>
-        ${defend ? `<div class="card-visual ${defend.suit === '♥' || defend.suit === '♦' ? 'red' : 'black'} defended" style="margin-left:-20px;">
-          ${defend.rank}${defend.suit}
+        ${defend ? `<div class="card-visual defended ${defendColor}" style="margin-left:-16px;">
+          <span class="card-rank">${defend.r}</span>
+          <span class="card-suit">${defend.s}</span>
         </div>` : ''}
       </div>
     `;
@@ -274,58 +365,104 @@ function renderTable(table) {
 }
 
 function renderMyHand(cards) {
+  currentMyHand = cards || [];
   const handDiv = document.getElementById('my-hand');
-  handDiv.innerHTML = cards.map(card => {
-    const cardStr = `${card.rank}${card.suit}`;
-    const isSelected = selectedCard === cardStr;
+  if (!currentMyHand.length) {
+    handDiv.innerHTML = '<p style="color:var(--muted); font-size:13px;">Keine Karten mehr.</p>';
+    return;
+  }
+  handDiv.innerHTML = currentMyHand.map(card => {
+    const isSelected = selectedCard === `${card.r}${card.s}`;
+    const isRed = card.s === 'H' || card.s === 'D';
+    const role = getMyRole(currentGameState);
+    const playable = role === 'attacker' || role === 'defender';
     return `
-      <button class="card-btn ${isSelected ? 'selected' : ''}" data-card="${cardStr}" onclick="selectCard('${cardStr}', event)">
-        ${card.rank}${card.suit}
+      <button class="card-btn ${isSelected ? 'selected' : ''} ${playable ? 'playable' : ''} ${isRed ? 'red' : 'black'}" data-card="${card.r}${card.s}" onclick="selectCard('${card.r}${card.s}', event)">
+        <span class="card-rank">${card.r}</span>
+        <span class="card-suit">${card.s}</span>
       </button>
     `;
   }).join('');
 }
 
 function selectCard(cardStr, e) {
-  e.preventDefault();
+  if (e) e.preventDefault();
+  const role = getMyRole(currentGameState);
+  if (role === 'watcher') {
+    showError('Du kannst gerade nicht ziehen.');
+    return;
+  }
   if (selectedCard === cardStr) {
     selectedCard = null;
-    e.target.classList.remove('selected');
+    selectedCardData = null;
+    document.querySelectorAll('.card-btn.selected').forEach(b => b.classList.remove('selected'));
   } else {
     document.querySelectorAll('.card-btn.selected').forEach(b => b.classList.remove('selected'));
     selectedCard = cardStr;
-    e.target.classList.add('selected');
+    selectedCardData = currentMyHand.find(card => `${card.r}${card.s}` === cardStr) || null;
+    if (e && e.currentTarget) e.currentTarget.classList.add('selected');
   }
+  updateActionButtons(currentGameState);
 }
 
-function renderPlayersInfo(players, attackerIdx, defenderIdx) {
+function playSelectedCard() {
+  if (!selectedCard || !selectedCardData || !currentTableId || !currentGameState) return;
+  const role = getMyRole(currentGameState);
+  if (role === 'attacker') {
+    socket.emit('durak:playAttack', { tableId: currentTableId, card: selectedCardData });
+  } else if (role === 'defender') {
+    const attackIdx = getPendingAttackIndex(currentGameState.tableCards || []);
+    if (attackIdx < 0) {
+      showError('Es gibt aktuell nichts abzuwehren.');
+      return;
+    }
+    socket.emit('durak:playDefense', { tableId: currentTableId, card: selectedCardData });
+  } else {
+    showError('Du bist gerade nicht dran.');
+    return;
+  }
+  selectedCard = null;
+  selectedCardData = null;
+  updateActionButtons(currentGameState);
+}
+
+function takeCards() {
+  if (!currentTableId) return;
+  socket.emit('durak:takeCards', { tableId: currentTableId });
+}
+
+function endRound() {
+  if (!currentTableId) return;
+  socket.emit('durak:pass', { tableId: currentTableId });
+}
+
+function renderPlayersInfo(seats, attackerId, defenderId) {
   const info = document.getElementById('players-info');
-  const myPlayerIdx = players.findIndex(p => p.id === me.id);
-  
-  info.innerHTML = players.map((p, i) => {
+  info.innerHTML = seats.map((seat) => {
     let role = '👤 Zuschauer';
-    if (i === attackerIdx) role = '🎯 Angreifer';
-    else if (i === defenderIdx) role = '🛡️ Verteidiger';
-    
+    if (seat.userId === attackerId) role = '🎯 Angreifer';
+    else if (seat.userId === defenderId) role = '🛡️ Verteidiger';
     return `
       <div class="player-row">
-        <div class="player-name">${escapeHtml(p.name)}</div>
+        <div class="player-name">${escapeHtml(seat.name)}</div>
         <div class="role-badge">${role}</div>
-        <div class="player-cards">${p.card_count}🎴</div>
+        <div class="player-cards">${seat.handCount}🎴</div>
       </div>
     `;
   }).join('');
 }
 
 function backToLobby() {
-  currentGame = null;
+  currentTableId = null;
   currentGameState = null;
   selectedCard = null;
-  socket.emit('durak:listLobbies');
+  selectedCardData = null;
+  socket.emit('durak:listTables');
   showLobby();
 }
 
 connectSocket();
+socket.emit('durak:listTables');
 </script>
 </body>
 </html>
