@@ -35,46 +35,6 @@
   ],
   "round_history": [
     {
-      "number": 31,
-      "color": "black",
-      "ts": 1782888868629
-    },
-    {
-      "number": 5,
-      "color": "red",
-      "ts": 1782888883527
-    },
-    {
-      "number": 12,
-      "color": "red",
-      "ts": 1782888891650
-    },
-    {
-      "number": 33,
-      "color": "black",
-      "ts": 1782888906550
-    },
-    {
-      "number": 14,
-      "color": "red",
-      "ts": 1782888914672
-    },
-    {
-      "number": 30,
-      "color": "red",
-      "ts": 1782888929572
-    },
-    {
-      "number": 23,
-      "color": "red",
-      "ts": 1782888937694
-    },
-    {
-      "number": 30,
-      "color": "red",
-      "ts": 1782888952594
-    },
-    {
       "number": 33,
       "color": "black",
       "ts": 1782888960720
@@ -183,6 +143,46 @@
       "number": 4,
       "color": "black",
       "ts": 1782889205834
+    },
+    {
+      "number": 36,
+      "color": "red",
+      "ts": 1782889213983
+    },
+    {
+      "number": 2,
+      "color": "black",
+      "ts": 1782889228857
+    },
+    {
+      "number": 8,
+      "color": "black",
+      "ts": 1782889237058
+    },
+    {
+      "number": 28,
+      "color": "black",
+      "ts": 1782889251879
+    },
+    {
+      "number": 4,
+      "color": "black",
+      "ts": 1782889260083
+    },
+    {
+      "number": 0,
+      "color": "green",
+      "ts": 1782889274903
+    },
+    {
+      "number": 7,
+      "color": "red",
+      "ts": 1782889283110
+    },
+    {
+      "number": 15,
+      "color": "black",
+      "ts": 1782889297926
     }
   ],
   "global_chat": [],
@@ -3173,6 +3173,118 @@
     },
     {
       "ts": 1782889205834,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782889213983,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782889228857,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782889237058,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782889251879,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782889260083,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782889274903,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782889283110,
+      "total": 2000,
+      "top": [
+        {
+          "name": "duraktest",
+          "coins": 1000
+        },
+        {
+          "name": "nik",
+          "coins": 1000
+        }
+      ]
+    },
+    {
+      "ts": 1782889297926,
       "total": 2000,
       "top": [
         {
