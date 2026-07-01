@@ -38,8 +38,7 @@ DEFAULT_DB = {
     "private_chats": {},  # key "id1_id2" (sortiert) -> [messages]
     "settings": dict(DEFAULT_SETTINGS),
     "coin_history": [],  # Snapshots {ts, total, top:[{name,coins}]}
-    "durak_games": [],  # aktive Spiele
-    "durak_stats": {},  # userId -> {wins, losses}
+    "bj_games": []        # Speicher für aktive Blackjack-Spiele
 }
 
 
@@ -49,6 +48,7 @@ def load_db():
         return json.loads(json.dumps(DEFAULT_DB))
     with open(DB_PATH, 'r', encoding='utf-8') as f:
         db = json.load(f)
+        
     # Migration für ältere db.json-Dateien ohne neuere Felder
     db.setdefault('global_chat', [])
     db.setdefault('private_chats', {})
@@ -56,8 +56,13 @@ def load_db():
     for k, v in DEFAULT_SETTINGS.items():
         db['settings'].setdefault(k, v)
     db.setdefault('coin_history', [])
-    db.setdefault('durak_games', [])
-    db.setdefault('durak_stats', {})
+    
+    # Durak-Reste entfernen
+    if 'durak_games' in db: del db['durak_games']
+    if 'durak_stats' in db: del db['durak_stats']
+    
+    # Blackjack-Speicher sicherstellen
+    db.setdefault('bj_games', [])
     return db
 
 
@@ -103,7 +108,6 @@ def number_color(n):
     return "red" if n in RED_NUMBERS else "black"
 
 
-# static_folder angepasst, template_folder deaktiviert, da Dateien flach liegen
 app = Flask(__name__, static_folder='.', template_folder='.')
 app.config['SECRET_KEY'] = 'roulette-secret'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
@@ -116,7 +120,7 @@ def sids_for_user(user_id):
     return [sid for sid, v in online.items() if v['userId'] == user_id]
 
 
-# ============ ROULETTE STATE (im Speicher) ============
+# ============ ROULETTE STATE ============
 roulette = {
     "phase": "betting",       # betting | spinning | result
     "round_id": 1,
@@ -127,7 +131,7 @@ roulette = {
 roulette_lock = Lock()
 
 
-# 📁 HIER KORRIGIERT: send_from_directory nutzt jetzt BASE_DIR statt 'templates'
+# ============ SEITEN-ROUTEN (FLACHE STRUKTUR) ============
 @app.route('/')
 def index():
     return send_from_directory(BASE_DIR, 'index.html')
@@ -143,9 +147,9 @@ def dashboard_page():
     return send_from_directory(BASE_DIR, 'dashboard.html')
 
 
-@app.route('/durak.html')
-def durak_page():
-    return send_from_directory(BASE_DIR, 'durak.html')
+@app.route('/blackjack.html')
+def blackjack_page():
+    return send_from_directory(BASE_DIR, 'blackjack.html')
 
 
 def public_user(u):
@@ -230,7 +234,6 @@ def my_bets_payload(user_id):
 
 
 # ============ DASHBOARD / LEADERBOARD ============
-
 def dashboard_payload(db):
     leaderboard = sorted(db['users'], key=lambda u: u['coins'], reverse=True)
     online_ids = {v['userId'] for v in online.values()}
@@ -264,8 +267,7 @@ def broadcast_dashboard():
     socketio.emit('dashboard:update', payload)
 
 
-# ============ SOCKET.IO — ROULETTE ============
-
+# ============ SOCKET.IO — IDENTIFY & DISCONNECT ============
 @socketio.on('identify')
 def on_identify(user_id):
     with db_lock:
@@ -282,11 +284,17 @@ def on_identify(user_id):
     broadcast_users()
 
 
+@socketio.on('disconnect')
+def on_disconnect():
+    online.pop(request.sid, None)
+    broadcast_users()
+
+
+# ============ SOCKET.IO — ROULETTE LOGIK ============
 @socketio.on('roulette:bet')
 def on_bet(data):
     me = online.get(request.sid)
-    if not me:
-        return
+    if not me: return
     bet_type = data.get('type')
     value = data.get('value')
     amount = data.get('amount')
@@ -297,24 +305,17 @@ def on_bet(data):
     amount = int(amount)
 
     valid_types = {'number', 'red', 'black', 'odd', 'even', 'low', 'high'}
-    if bet_type not in valid_types:
-        emit('roulette:error', "Ungültige Wette.")
-        return
+    if bet_type not in valid_types: return
     if bet_type == 'number':
-        try:
-            value = int(value)
-        except (TypeError, ValueError):
-            emit('roulette:error', "Ungültige Zahl.")
-            return
-        if not (0 <= value <= 36):
-            emit('roulette:error', "Zahl muss zwischen 0 und 36 liegen.")
-            return
+        try: value = int(value)
+        except: return
+        if not (0 <= value <= 36): return
     else:
         value = bet_type
 
     with roulette_lock:
         if roulette['phase'] != 'betting':
-            emit('roulette:error', "Wetten gerade nicht möglich — warte auf die nächste Runde.")
+            emit('roulette:error', "Wetten gerade nicht möglich.")
             return
 
     with db_lock:
@@ -329,9 +330,7 @@ def on_bet(data):
         new_coins = user['coins']
 
     with roulette_lock:
-        roulette['bets'].setdefault(me['userId'], []).append(
-            {"type": bet_type, "value": value, "amount": amount}
-        )
+        roulette['bets'].setdefault(me['userId'], []).append({"type": bet_type, "value": value, "amount": amount})
 
     emit('roulette:coins', new_coins)
     emit('roulette:myBets', my_bets_payload(me['userId']))
@@ -342,13 +341,10 @@ def on_bet(data):
 @socketio.on('roulette:removeBet')
 def on_remove_bet(data):
     me = online.get(request.sid)
-    if not me:
-        return
+    if not me: return
 
     with roulette_lock:
-        if roulette['phase'] != 'betting':
-            emit('roulette:error', "Einsätze können nur während der Setzphase entfernt werden.")
-            return
+        if roulette['phase'] != 'betting': return
         user_bets = roulette['bets'].get(me['userId'], [])
         index = (data or {}).get('index')
 
@@ -356,24 +352,18 @@ def on_remove_bet(data):
             removed = user_bets
             roulette['bets'][me['userId']] = []
         else:
-            try:
-                index = int(index)
-            except (TypeError, ValueError):
-                return
-            if not (0 <= index < len(user_bets)):
-                emit('roulette:error', "Einsatz nicht gefunden.")
-                return
+            try: index = int(index)
+            except: return
+            if not (0 <= index < len(user_bets)): return
             removed = [user_bets.pop(index)]
 
     refund_total = sum(b['amount'] for b in removed)
-    if refund_total <= 0:
-        return
+    if refund_total <= 0: return
 
     with db_lock:
         db = load_db()
         user = get_user(db, me['userId'])
-        if not user:
-            return
+        if not user: return
         user['coins'] += refund_total
         for b in removed:
             add_transaction(db, user['id'], user['name'], b['amount'], f"Einsatz zurückgenommen ({b['type']} {b['value']})")
@@ -386,22 +376,13 @@ def on_remove_bet(data):
     broadcast_users()
 
 
-@socketio.on('disconnect')
-def on_disconnect():
-    online.pop(request.sid, None)
-    broadcast_users()
-
-
-# ============ SOCKET.IO — CHAT ============
-
+# ============ SOCKET.IO — CHAT LOGIK ============
 @socketio.on('chat:sendGlobal')
 def on_chat_global(data):
     me = online.get(request.sid)
-    if not me:
-        return
+    if not me: return
     text = ((data or {}).get('text') or '').strip()
-    if not text or len(text) > MAX_CHAT_LEN:
-        return
+    if not text or len(text) > MAX_CHAT_LEN: return
     msg = {
         "id": uuid.uuid4().hex[:8],
         "userId": me['userId'],
@@ -420,18 +401,15 @@ def on_chat_global(data):
 @socketio.on('chat:sendPrivate')
 def on_chat_private(data):
     me = online.get(request.sid)
-    if not me:
-        return
+    if not me: return
     to_id = (data or {}).get('to')
     text = ((data or {}).get('text') or '').strip()
-    if not to_id or not text or len(text) > MAX_CHAT_LEN or to_id == me['userId']:
-        return
+    if not to_id or not text or len(text) > MAX_CHAT_LEN or to_id == me['userId']: return
 
     with db_lock:
         db = load_db()
         target_user = get_user(db, to_id)
-        if not target_user:
-            return
+        if not target_user: return
         msg = {
             "id": uuid.uuid4().hex[:8],
             "from": me['userId'],
@@ -453,8 +431,7 @@ def on_chat_private(data):
 @socketio.on('chat:history')
 def on_chat_history(data):
     me = online.get(request.sid)
-    if not me:
-        return
+    if not me: return
     kind = (data or {}).get('type')
     with db_lock:
         db = load_db()
@@ -462,17 +439,140 @@ def on_chat_history(data):
             emit('chat:globalHistory', db['global_chat'][-MAX_GLOBAL_HISTORY:])
         elif kind == 'private':
             other_id = (data or {}).get('with')
-            if not other_id:
-                return
+            if not other_id: return
             key = private_chat_key(me['userId'], other_id)
-            emit('chat:privateHistory', {
-                "with": other_id,
-                "messages": db['private_chats'].get(key, []),
-            })
+            emit('chat:privateHistory', {"with": other_id, "messages": db['private_chats'].get(key, [])})
 
 
-# ============ ROULETTE ENGINE TIMERS ============
+# ============ BLACKJACK ENGINE & SPIELLOGIK ============
+def bj_build_deck():
+    suits = ['♠', '♣', '♥', '♦']
+    ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+    deck = [{'s': s, 'r': r} for s in suits for r in ranks]
+    random.shuffle(deck)
+    return deck
 
+
+def calc_score(hand):
+    score = 0
+    aces = 0
+    for card in hand:
+        r = card['r']
+        if r in ['J', 'Q', 'K']: score += 10
+        elif r == 'A': score += 11; aces += 1
+        else: score += int(r)
+    while score > 21 and aces:
+        score -= 10
+        aces -= 1
+    return score
+
+
+@socketio.on('bj:createGame')
+def on_bj_create(data):
+    me = online.get(request.sid)
+    if not me: return
+    my_id = me['userId']
+    bet = int(data.get('bet', 10))
+    if bet < 10: return
+
+    with db_lock:
+        db = load_db()
+        user = get_user(db, my_id)
+        if not user or user.get('coins', 0) < bet:
+            emit('bj:error', "Nicht genug Coins!")
+            return
+            
+        user['coins'] -= bet
+        add_transaction(db, user['id'], user['name'], -bet, "Einsatz Blackjack Tisch")
+        save_db(db)
+        emit('roulette:coins', user['coins'])
+        broadcast_users()
+
+    game = {
+        "id": uuid.uuid4().hex[:8],
+        "player": {"id": my_id, "name": me.get('name', 'Spieler'), "hand": [], "bet": bet, "status": "playing"},
+        "dealer": [],
+        "deck": bj_build_deck(),
+        "state": "playing"
+    }
+    
+    game['player']['hand'] = [game['deck'].pop(), game['deck'].pop()]
+    game['dealer'] = [game['deck'].pop(), game['deck'].pop()]
+    
+    with db_lock:
+        db = load_db()
+        db['bj_games'].append(game)
+        save_db(db)
+    
+    emit('bj:gameState', game)
+
+
+@socketio.on('bj:hit')
+def on_bj_hit(data):
+    me = online.get(request.sid)
+    if not me: return
+    my_id = me['userId']
+    game_id = data.get('gameId')
+    
+    with db_lock:
+        db = load_db()
+        game = next((g for g in db['bj_games'] if g['id'] == game_id), None)
+        if not game or game['player']['id'] != my_id or game['state'] != 'playing': return
+        
+        game['player']['hand'].append(game['deck'].pop())
+        if calc_score(game['player']['hand']) > 21:
+            game['player']['status'] = 'lost'
+            game['state'] = 'finished'
+            
+        save_db(db)
+    emit('bj:gameState', game)
+
+
+@socketio.on('bj:stand')
+def on_bj_stand(data):
+    me = online.get(request.sid)
+    if not me: return
+    my_id = me['userId']
+    game_id = data.get('gameId')
+    
+    with db_lock:
+        db = load_db()
+        game = next((g for g in db['bj_games'] if g['id'] == game_id), None)
+        if not game or game['state'] != 'playing': return
+        
+        while calc_score(game['dealer']) < 17:
+            game['dealer'].append(game['deck'].pop())
+            
+        p_score = calc_score(game['player']['hand'])
+        d_score = calc_score(game['dealer'])
+        user = get_user(db, my_id)
+        
+        if d_score > 21 or p_score > d_score:
+            game['player']['status'] = 'won'
+            payout = game['player']['bet'] * 2
+            if user:
+                user['coins'] += payout
+                add_transaction(db, user['id'], user['name'], payout, "Gewinn Blackjack")
+        elif p_score == d_score:
+            game['player']['status'] = 'tie'
+            payout = game['player']['bet']
+            if user:
+                user['coins'] += payout
+                add_transaction(db, user['id'], user['name'], payout, "Einsatz zurück (Blackjack Tie)")
+        else:
+            game['player']['status'] = 'lost'
+            
+        game['state'] = 'finished'
+        save_db(db)
+        if user:
+            emit('roulette:coins', user['coins'])
+            broadcast_users()
+            broadcast_dashboard()
+            
+    emit('bj:gameState', game)
+
+
+# ============ ROULETTE TIMERS & LOOP ============
 def run_round_payouts(db, win_num):
     color = number_color(win_num)
     is_odd = (win_num % 2 != 0) and (win_num != 0)
@@ -485,49 +585,33 @@ def run_round_payouts(db, win_num):
 
     for uid, bets in all_bets.items():
         user = get_user(db, uid)
-        if not user:
-            continue
+        if not user: continue
         
         total_won = 0
         for b in bets:
             b_type = b['type']
             val = b['value']
             amt = b['amount']
-
             won = False
             multiplier = 0
 
-            if b_type == 'number' and val == win_num:
-                won, multiplier = True, 35
-            elif b_type == 'red' and color == 'red':
-                won, multiplier = True, 1
-            elif b_type == 'black' and color == 'black':
-                won, multiplier = True, 1
-            elif b_type == 'odd' and is_odd:
-                won, multiplier = True, 1
-            elif b_type == 'even' and is_even:
-                won, multiplier = True, 1
-            elif b_type == 'low' and is_low:
-                won, multiplier = True, 1
-            elif b_type == 'high' and is_high:
-                won, multiplier = True, 1
+            if b_type == 'number' and val == win_num: won, multiplier = True, 35
+            elif b_type == 'red' and color == 'red': won, multiplier = True, 1
+            elif b_type == 'black' and color == 'black': won, multiplier = True, 1
+            elif b_type == 'odd' and is_odd: won, multiplier = True, 1
+            elif b_type == 'even' and is_even: won, multiplier = True, 1
+            elif b_type == 'low' and is_low: won, multiplier = True, 1
+            elif b_type == 'high' and is_high: won, multiplier = True, 1
 
-            if won:
-                payout = amt + (amt * multiplier)
-                total_won += payout
+            if won: total_won += amt + (amt * multiplier)
 
         if total_won > 0:
             user['coins'] += total_won
             add_transaction(db, user['id'], user['name'], total_won, f"Gewinn Roulette (Runde #{roulette['round_id']})")
-            
             for sid in sids_for_user(user['id']):
                 socketio.emit('roulette:coins', user['coins'], room=sid)
 
-    db['round_history'].append({
-        "number": win_num,
-        "color": color,
-        "ts": int(time.time() * 1000)
-    })
+    db['round_history'].append({"number": win_num, "color": color, "ts": int(time.time() * 1000)})
     db['round_history'] = db['round_history'][-30:]
     record_coin_snapshot(db)
     save_db(db)
@@ -538,7 +622,6 @@ def roulette_game_loop():
         with db_lock:
             settings = get_settings(load_db())
 
-        # --- SETZPHASE ---
         with roulette_lock:
             roulette['phase'] = 'betting'
             roulette['bets'] = {}
@@ -548,7 +631,6 @@ def roulette_game_loop():
         socketio.emit('roulette:state', public_roulette_state(), room='global')
         time.sleep(settings['betting_seconds'])
 
-        # --- ROLLPHASE ---
         result_number = random.randint(0, 36)
         with roulette_lock:
             roulette['phase'] = 'spinning'
@@ -558,7 +640,6 @@ def roulette_game_loop():
         socketio.emit('roulette:state', public_roulette_state(), room='global')
         time.sleep(settings['spin_seconds'])
 
-        # --- GEWINNAUSZAHLUNG ---
         with db_lock:
             db = load_db()
             run_round_payouts(db, result_number)
@@ -576,20 +657,13 @@ def roulette_game_loop():
         broadcast_users()
         
         time.sleep(settings['result_seconds'])
-        
-        with roulette_lock:
-            roulette['round_id'] += 1
+        with roulette_lock: roulette['round_id'] += 1
 
 
-# ============ MAIN APP RUNNER ============
-
+# ============ SERVER START ============
 if __name__ == '__main__':
     with db_lock:
         load_db()
-    
-    # Startet den Roulette-Loop im Hintergrund thread-safe
     socketio.start_background_task(roulette_game_loop)
-    
-    # Port dynamisch für Render auslesen
     port = int(os.environ.get('PORT', 3000))
     socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
