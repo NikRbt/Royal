@@ -164,7 +164,16 @@ function connectSocket() {
 }
 
 function startGame() {
-  const bet = parseInt(document.getElementById('bet-amount').value, 10);
+  const betInput = document.getElementById('bet-amount');
+  
+  if (!betInput) {
+    console.error("Element 'bet-amount' wurde nicht gefunden!");
+    showError("Fehler: Einsatz-Feld nicht gefunden.");
+    return;
+  }
+
+  const bet = parseInt(betInput.value, 10);
+  
   if (isNaN(bet) || bet < 10) { 
     showError('Der Einsatz muss mindestens 10 Coins betragen.'); 
     return; 
