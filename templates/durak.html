@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Durak — Live Millionaires</title>
+<title>Blackjack — Live Millionaires</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
   :root {
@@ -19,7 +19,7 @@
   main { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
   #login-check { display:none; }
-  #lobby-view { display:none; }
+  #lobby-view { display:block; }
   #game-view { display:none; }
 
   .lobby-header { display:flex; align-items:center; gap:20px; margin-bottom:20px; flex-wrap:wrap; }
@@ -29,15 +29,6 @@
   .create-game-box input { background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px 10px; font-size:13px; width:120px; margin-bottom:10px; }
   .create-game-box button { background:var(--accent); color:white; border:none; border-radius:6px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; }
 
-  .lobbies-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap:12px; }
-  .lobby-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; cursor:pointer; transition:all .2s; }
-  .lobby-card:hover { border-color:var(--accent); background:var(--panel2); }
-  .lobby-card .name { font-weight:700; margin-bottom:8px; }
-  .lobby-card .info { font-size:12px; color:var(--muted); }
-  .lobby-card .info div { margin-bottom:4px; }
-  .lobby-card .join-btn { background:var(--accent); color:white; border:none; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; width:100%; margin-top:10px; }
-  .lobby-card .start-btn { background:var(--green); color:white; border:none; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; width:100%; margin-top:8px; }
-
   .game-layout { display:grid; grid-template-columns: 1fr 240px; gap:20px; }
   .game-board { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; }
   .game-side { display:flex; flex-direction:column; gap:14px; }
@@ -46,56 +37,30 @@
   .status-label { font-size:11px; color:var(--muted); text-transform:uppercase; margin-bottom:6px; }
   .status-value { font-size:18px; font-weight:800; color:var(--gold); }
 
-  .table-area { background: linear-gradient(135deg, #1a1f26 0%, #25262f 100%); border-radius:12px; border:2px solid #3a4050; padding:20px; min-height:280px; position:relative; margin-bottom:20px; }
-  .trump-display { position:absolute; top:10px; right:10px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:12px; }
-  .trump-display .lbl { color:var(--muted); font-size:10px; text-transform:uppercase; }
-  .trump-display .card { font-size:20px; font-weight:800; }
+  .table-area { background: linear-gradient(135deg, #1a1f26 0%, #25262f 100%); border-radius:12px; border:2px solid #3a4050; padding:20px; min-height:280px; position:relative; margin-bottom:20px; display:flex; flex-direction:column; gap:20px; justify-content:center; }
+  
+  .bj-row { display:flex; flex-direction:column; gap:8px; }
+  .bj-row h3 { margin:0; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
+  
+  .card-container { display:flex; flex-wrap:wrap; gap:10px; min-height:104px; align-items:center; }
 
-  .table-pairs { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; justify-content:center; min-height:180px; align-content:center; }
-  .card-pair { display:flex; gap:-8px; position:relative; }
-  .card-visual { width:60px; height:88px; border-radius:8px; border:2px solid; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; cursor:default; user-select:none; }
-  .card-visual.red { background:#e64545; border-color:#ff6b6b; color:white; }
-  .card-visual.black { background:#1c1f26; border-color:#555; color:white; }
-  .card-visual.defended { opacity:0.6; }
-
-  .my-hand-box { background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px; }
-  .my-hand-box h3 { font-size:12px; color:var(--muted); text-transform:uppercase; margin:0 0 10px; }
-  .my-hand { display:flex; flex-wrap:wrap; gap:10px; }
-  .card-btn { width:70px; height:104px; border-radius:14px; border:2px solid var(--border); background:linear-gradient(135deg, #fffdf5 0%, #f7f1d0 100%); color:#161b22; font-weight:800; font-size:18px; cursor:pointer; transition:all .15s; box-shadow:0 8px 16px rgba(0,0,0,.25); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6px; position:relative; }
-  .card-btn:hover { transform:translateY(-3px); border-color:var(--accent); box-shadow:0 10px 18px rgba(91,140,255,.25); }
-  .card-btn.selected { border-color:var(--gold); box-shadow:0 0 0 2px rgba(255,200,87,.35), 0 10px 18px rgba(255,200,87,.25); transform:translateY(-4px); }
-  .card-btn.playable { border-color:var(--accent); }
-  .card-btn .card-rank { font-size:20px; line-height:1; }
-  .card-btn .card-suit { font-size:24px; margin-top:4px; }
-  .card-btn.red { color:#b42318; }
-  .card-btn.black { color:#161b22; }
-  .table-pair { display:flex; align-items:center; gap:8px; }
-  .card-visual { width:68px; height:100px; border-radius:12px; border:2px solid; display:flex; flex-direction:column; align-items:center; justify-content:center; font-weight:800; font-size:18px; box-shadow:0 8px 16px rgba(0,0,0,.25); }
+  .card-visual { width:70px; height:104px; border-radius:14px; border:2px solid var(--border); background:linear-gradient(135deg, #fffdf5 0%, #f7f1d0 100%); color:#161b22; font-weight:800; font-size:18px; box-shadow:0 8px 16px rgba(0,0,0,.25); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6px; position:relative; user-select:none; }
   .card-visual .card-rank { font-size:20px; line-height:1; }
   .card-visual .card-suit { font-size:24px; margin-top:4px; }
-  .card-visual.red { background:linear-gradient(135deg, #ff6b6b 0%, #d64545 100%); border-color:#ffd5d5; color:white; }
-  .card-visual.black { background:linear-gradient(135deg, #2b2f38 0%, #1a1f26 100%); border-color:#7a8497; color:white; }
-  .card-visual.defended { opacity:0.7; }
+  .card-visual.red { color:#b42318; }
+  .card-visual.black { color:#161b22; }
+  .card-visual.hidden-card { background: linear-gradient(135deg, #2c3e50 0%, #0f171e 100%); border-color: var(--accent); color: var(--accent); }
+
   .hint-box { background:rgba(91,140,255,.12); border:1px solid rgba(91,140,255,.28); border-radius:10px; padding:10px 12px; font-size:12px; color:#dfe8ff; margin-bottom:10px; }
-  .action-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
-
-  .players-list { background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px; }
-  .players-list h3 { font-size:12px; color:var(--muted); text-transform:uppercase; margin:0 0 10px; }
-  .player-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:12px; }
-  .player-row:last-child { border-bottom:none; }
-  .player-name { flex:1; }
-  .player-status { font-size:10px; color:var(--muted); }
-  .player-cards { color:var(--gold); font-weight:700; }
-  .role-badge { font-size:10px; color:var(--gold); background:#332b14; padding:1px 5px; border-radius:3px; }
-
+  
   .actions-box { background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px; }
   .actions-box h3 { font-size:12px; color:var(--muted); text-transform:uppercase; margin:0 0 10px; }
-  .action-btn { width:100%; background:var(--accent); color:white; border:none; border-radius:6px; padding:8px; font-size:12px; font-weight:600; cursor:pointer; margin-bottom:6px; }
+  .action-btn { width:100%; background:var(--accent); color:white; border:none; border-radius:6px; padding:8px; font-size:12px; font-weight:600; cursor:pointer; margin-bottom:6px; transition: opacity 0.2s; }
+  .action-btn.success { background:var(--green); }
   .action-btn.danger { background:var(--red-c); }
-  .action-btn:disabled { opacity:.5; cursor:default; }
+  .action-btn:disabled { opacity:.3; cursor:not-allowed; }
 
   .message-box { background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:10px; font-size:12px; color:var(--gold); text-align:center; }
-
   #error-toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#3a1c1c; color:#ff8a8a; border:1px solid #5a2a2a; padding:10px 18px; border-radius:8px; font-size:13px; display:none; z-index:50; }
 
   @media (max-width:900px) {
@@ -107,7 +72,7 @@
 <body>
 
 <header>
-  <div class="brand">♠️ Durak — Live Millionaires</div>
+  <div class="brand">🃏 Blackjack — Live Millionaires</div>
   <div class="links">
     <a href="/">🎡 Roulette</a>
     <a href="/dashboard.html">📊 Dashboard</a>
@@ -117,56 +82,53 @@
 <main>
   <div id="login-check" style="text-align:center; padding:40px; color:var(--muted);">Lädt...</div>
 
+  <!-- LOBBY VIEW (Einsatz wählen) -->
   <div id="lobby-view">
     <div class="lobby-header">
-      <h1>🎴 Durak Lobby</h1>
+      <h1>💰 Blackjack Tisch</h1>
       <div class="create-game-box">
-        <label>Einsatz pro Spieler</label>
-        <input type="number" id="bet-amount" value="50" min="10" max="10000">
-        <button onclick="createTable()">Tisch erstellen</button>
+        <label>Dein Einsatz</label>
+        <input type="number" id="bet-amount" value="10" min="10" max="10000">
+        <button onclick="startGame()">Spiel starten</button>
       </div>
     </div>
-    <h2 style="margin-bottom:16px; font-size:14px; color:var(--muted); text-transform:uppercase;">Verfügbare Tische</h2>
-    <div class="lobbies-grid" id="lobbies-grid"></div>
   </div>
 
+  <!-- GAME VIEW (Spielfeld) -->
   <div id="game-view">
     <div class="game-layout">
       <div class="game-board">
         <div class="game-status">
-          <div class="status-label" id="game-phase">Phase</div>
-          <div class="status-value" id="game-message">—</div>
+          <div class="status-label">Aktueller Status</div>
+          <div class="status-value" id="game-message">Spielen...</div>
         </div>
 
         <div class="table-area">
-          <div class="trump-display">
-            <div class="lbl">Trump</div>
-            <div class="card" id="trump-card">♠</div>
+          <!-- DEALER BEREICH -->
+          <div class="bj-row">
+            <h3 id="dealer-score-label">Dealer: —</h3>
+            <div class="card-container" id="dealer-cards"></div>
           </div>
-          <div class="table-pairs" id="table-pairs"></div>
-        </div>
+          
+          <hr style="border:0; border-top:1px dashed var(--border); margin:10px 0;">
 
-        <div class="my-hand-box">
-          <h3>Meine Hand</h3>
-          <div class="my-hand" id="my-hand"></div>
+          <!-- SPIELER BEREICH -->
+          <div class="bj-row">
+            <h3 id="player-score-label">Deine Hand: —</h3>
+            <div class="card-container" id="player-cards"></div>
+          </div>
         </div>
       </div>
 
       <div class="game-side">
-        <div class="message-box" id="message-box">Warte auf andere Spieler...</div>
-        <div class="hint-box" id="turn-hint">Wähle eine Karte aus und lege sie direkt ab.</div>
+        <div class="message-box" id="bet-info">Einsatz: 0 Coins</div>
+        <div class="hint-box" id="turn-hint">Wähle Hit für eine weitere Karte oder Stand um zu halten.</div>
 
-        <div class="players-list">
-          <h3>Spieler</h3>
-          <div id="players-info"></div>
-        </div>
-
-        <div class="actions-box" id="actions-box">
-          <h3>Aktionen</h3>
-          <button class="action-btn" id="action-play" onclick="playSelectedCard()" disabled>🃏 Gewählte Karte legen</button>
-          <button class="action-btn danger" id="action-take" onclick="takeCards()" style="display:none;">📥 Karten aufnehmen</button>
-          <button class="action-btn" id="action-end-round" onclick="endRound()" style="display:none;">✅ Runde beenden</button>
-          <button class="action-btn" onclick="backToLobby()">← Zurück</button>
+        <div class="actions-box">
+          <h3>Optionen</h3>
+          <button class="action-btn success" id="btn-hit" onclick="hitCard()">🟢 Hit (Karte)</button>
+          <button class="action-btn danger" id="btn-stand" onclick="standHand()">🔴 Stand (Halten)</button>
+          <button class="action-btn" id="btn-leave" onclick="backToLobby()" style="margin-top:12px; background:var(--panel2); border:1px solid var(--border);">← Beenden</button>
         </div>
       </div>
     </div>
@@ -181,11 +143,7 @@ const me = JSON.parse(localStorage.getItem('roulette_user') || 'null');
 if (!me) window.location.href = '/';
 
 let socket;
-let currentTableId = null;
-let currentGameState = null;
-let selectedCard = null;
-let selectedCardData = null;
-let currentMyHand = [];
+let currentGameId = null;
 
 function showError(msg) {
   const toast = document.getElementById('error-toast');
@@ -194,275 +152,124 @@ function showError(msg) {
   setTimeout(() => toast.style.display = 'none', 2500);
 }
 
-function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
 function connectSocket() {
   socket = io();
   socket.on('connect', () => {
     socket.emit('identify', me.id);
-    showLobby();
-    socket.emit('durak:listTables');
   });
-  socket.on('durak:tablesUpdate', renderLobbies);
-  socket.on('durak:error', showError);
-  socket.on('durak:joined', data => {
-    currentTableId = data.tableId;
-    showGameView();
-  });
-  socket.on('durak:state', renderGameState);
-  socket.on('durak:tableClosed', data => {
-    if (currentTableId === data.tableId) {
-      currentTableId = null;
-      currentGameState = null;
-      showLobby();
-    }
-  });
+  
+  // Blackjack Event-Listener vom Backend
+  socket.on('bj:gameState', renderGameState);
+  socket.on('bj:error', showError);
 }
 
-function showLobby() {
-  document.getElementById('login-check').style.display = 'none';
-  document.getElementById('lobby-view').style.display = 'block';
-  document.getElementById('game-view').style.display = 'none';
-  if (socket) socket.emit('durak:listTables');
-}
-
-function renderLobbies(tables) {
-  const grid = document.getElementById('lobbies-grid');
-  if (!tables.length) {
-    grid.innerHTML = '<p style="color:var(--muted);">Noch keine Tische. Erstelle einen neuen Tisch oben!</p>';
-    return;
+function startGame() {
+  const bet = parseInt(document.getElementById('bet-amount').value, 10);
+  if (isNaN(bet) || bet < 10) { 
+    showError('Der Einsatz muss mindestens 10 Coins betragen.'); 
+    return; 
   }
-  grid.innerHTML = tables.map(table => `
-    <div class="lobby-card">
-      <div class="name">Durak Tisch</div>
-      <div class="info">
-        <div>👥 Spieler: ${table.seatCount}/${table.maxSeats}</div>
-        <div>🪙 Einsatz: ${table.stake}</div>
-        <div>🧑‍🤝‍🧑 ${table.players.join(', ') || 'Nur du'}</div>
-      </div>
-      <button class="join-btn" onclick="joinTable('${table.id}')">Beitreten</button>
-      ${table.players.includes(me.name) ? '<button class="start-btn" onclick="startTable(\'' + table.id + '\')">Spiel starten</button>' : ''}
+  socket.emit('bj:createGame', { bet: bet });
+}
+
+function hitCard() {
+  if (!currentGameId) return;
+  socket.emit('bj:hit', { gameId: currentGameId });
+}
+
+function standHand() {
+  if (!currentGameId) return;
+  socket.emit('bj:stand', { gameId: currentGameId });
+}
+
+function calcScore(hand) {
+  let score = 0;
+  let aces = 0;
+  for (let card of hand) {
+    if (['J', 'Q', 'K'].includes(card.r)) score += 10;
+    else if (card.r === 'A') { score += 11; aces += 1; }
+    else score += parseInt(card.r, 10);
+  }
+  while (score > 21 && aces > 0) {
+    score -= 10;
+    aces -= 1;
+  }
+  return score;
+}
+
+function generateCardHtml(card, hide = false) {
+  if (hide) {
+    return `<div class="card-visual hidden-card">
+              <span class="card-rank">?</span>
+              <span class="card-suit">♣️</span>
+            </div>`;
+  }
+  const isRed = card.s === '♥' || card.s === '♦';
+  return `
+    <div class="card-visual ${isRed ? 'red' : 'black'}">
+      <span class="card-rank">${card.r}</span>
+      <span class="card-suit">${card.s}</span>
     </div>
-  `).join('');
+  `;
 }
 
-function createTable() {
-  const stake = parseInt(document.getElementById('bet-amount').value, 10);
-  if (stake < 10) { showError('Einsatz muss mindestens 10 sein'); return; }
-  socket.emit('durak:createTable', { stake });
-}
+function renderGameState(game) {
+  if (!game) return;
+  currentGameId = game.id;
 
-function joinTable(tableId) {
-  socket.emit('durak:joinTable', { tableId });
-  currentTableId = tableId;
-  showGameView();
-}
-
-function startTable(tableId) {
-  socket.emit('durak:startGame', { tableId });
-}
-
-function showGameView() {
+  // Views umschalten
   document.getElementById('lobby-view').style.display = 'none';
   document.getElementById('game-view').style.display = 'block';
-  document.getElementById('message-box').textContent = '⏳ Warten auf Spielstart...';
-}
 
-function getMyRole(state) {
-  if (!state || !state.seats || !state.seats.length) return 'watcher';
-  const meSeat = state.seats.find(s => s.userId === me.id);
-  if (!meSeat) return 'watcher';
-  if (state.attacker === me.id) return 'attacker';
-  if (state.defender === me.id) return 'defender';
-  return 'watcher';
-}
+  // Einsatz anzeigen
+  document.getElementById('bet-info').textContent = `Einsatz: ${game.player.bet} Coins`;
 
-function getPendingAttackIndex(tableCards) {
-  for (let i = tableCards.length - 1; i >= 0; i--) {
-    if (!tableCards[i].defense) return i;
-  }
-  return -1;
-}
+  // Spieler-Karten rendern
+  const pCardsDiv = document.getElementById('player-cards');
+  pCardsDiv.innerHTML = game.player.hand.map(c => generateCardHtml(c)).join('');
+  const pScore = calcScore(game.player.hand);
+  document.getElementById('player-score-label').textContent = `Deine Hand: ${pScore}`;
 
-function updateActionButtons(state) {
-  const playBtn = document.getElementById('action-play');
-  const takeBtn = document.getElementById('action-take');
-  const endBtn = document.getElementById('action-end-round');
-  const role = getMyRole(state);
-  const pendingAttack = getPendingAttackIndex(state.tableCards || []);
-
-  if (role === 'attacker') {
-    playBtn.disabled = !selectedCard;
-    playBtn.textContent = selectedCard ? '🃏 Gewählte Karte legen' : '🃏 Karte auswählen';
-    endBtn.style.display = (state.tableCards || []).length && state.tableCards.every(pair => pair.defense) ? 'block' : 'none';
-    takeBtn.style.display = 'none';
-  } else if (role === 'defender') {
-    playBtn.disabled = !selectedCard;
-    playBtn.textContent = pendingAttack >= 0 ? '🛡️ Gewählte Karte abwehren' : '🛡️ Karte auswählen';
-    endBtn.style.display = 'none';
-    takeBtn.style.display = (state.tableCards || []).length ? 'block' : 'none';
+  // Dealer-Karten rendern
+  const dCardsDiv = document.getElementById('dealer-cards');
+  if (game.state === 'playing') {
+    // Wenn das Spiel läuft, sieht man traditionell nur die erste Karte des Dealers scharf
+    dCardsDiv.innerHTML = generateCardHtml(game.dealer[0]) + generateCardHtml(null, true);
+    document.getElementById('dealer-score-label').textContent = `Dealer: Sichtbar ${calcScore([game.dealer[0]])}`;
+    
+    document.getElementById('game-message').textContent = 'Du bist am Zug!';
+    document.getElementById('btn-hit').disabled = false;
+    document.getElementById('btn-stand').disabled = false;
   } else {
-    playBtn.disabled = true;
-    playBtn.textContent = '🃏 Nur am Zug';
-    endBtn.style.display = 'none';
-    takeBtn.style.display = 'none';
-  }
-}
+    // Spiel vorbei -> Alle Dealer Karten aufdecken
+    dCardsDiv.innerHTML = game.dealer.map(c => generateCardHtml(c)).join('');
+    const dScore = calcScore(game.dealer);
+    document.getElementById('dealer-score-label').textContent = `Dealer: ${dScore}`;
 
-function renderGameState(state) {
-  currentGameState = state;
-  document.getElementById('game-phase').textContent = state.status === 'playing' ? '🎮 Im Spiel' : '✅ Vorbei';
-  const role = getMyRole(state);
-  const pendingAttack = getPendingAttackIndex(state.tableCards || []);
-  let turnText = state.log && state.log.length ? state.log[state.log.length - 1] : 'Spielen...';
+    // Status-Meldungen formatieren
+    document.getElementById('btn-hit').disabled = true;
+    document.getElementById('btn-stand').disabled = true;
 
-  if (role === 'attacker') {
-    turnText = 'Du bist der Angreifer — wähle eine Karte und lege sie ab.';
-  } else if (role === 'defender') {
-    turnText = pendingAttack >= 0 ? 'Du bist der Verteidiger — wehre die offene Karte ab.' : 'Du bist der Verteidiger — warte auf den nächsten Angriff.';
-  } else if (state.seats && state.seats.length > 1) {
-    turnText = 'Du beobachtest gerade das Spiel.';
-  }
-
-  document.getElementById('game-message').textContent = turnText;
-  document.getElementById('turn-hint').textContent = role === 'watcher' ? 'Du kannst nur zuschauen.' : 'Klicke auf eine Karte, dann auf „Gewählte Karte legen“.';
-
-  const trumpCard = state.trumpCard;
-  if (trumpCard) {
-    document.getElementById('trump-card').textContent = `${trumpCard.r}${trumpCard.s}`;
-  }
-
-  renderTable(state.tableCards || []);
-  renderPlayersInfo(state.seats || [], state.attacker, state.defender);
-  renderMyHand(state.seats.find(s => s.userId === me.id)?.hand || []);
-  updateActionButtons(state);
-}
-
-function renderTable(tableCards) {
-  const pairsDiv = document.getElementById('table-pairs');
-  if (!tableCards.length) {
-    pairsDiv.innerHTML = '<p style="color:var(--muted); font-size:13px;">Tisch leer — der erste Angriff kann starten.</p>';
-    return;
-  }
-  pairsDiv.innerHTML = tableCards.map((pair) => {
-    const attack = pair.attack;
-    const defend = pair.defense;
-    const isRed = attack.s === 'H' || attack.s === 'D';
-    const defendColor = defend && (defend.s === 'H' || defend.s === 'D') ? 'red' : 'black';
-    return `
-      <div class="table-pair">
-        <div class="card-visual ${isRed ? 'red' : 'black'}">
-          <span class="card-rank">${attack.r}</span>
-          <span class="card-suit">${attack.s}</span>
-        </div>
-        ${defend ? `<div class="card-visual defended ${defendColor}" style="margin-left:-16px;">
-          <span class="card-rank">${defend.r}</span>
-          <span class="card-suit">${defend.s}</span>
-        </div>` : ''}
-      </div>
-    `;
-  }).join('');
-}
-
-function renderMyHand(cards) {
-  currentMyHand = cards || [];
-  const handDiv = document.getElementById('my-hand');
-  if (!currentMyHand.length) {
-    handDiv.innerHTML = '<p style="color:var(--muted); font-size:13px;">Keine Karten mehr.</p>';
-    return;
-  }
-  handDiv.innerHTML = currentMyHand.map(card => {
-    const isSelected = selectedCard === `${card.r}${card.s}`;
-    const isRed = card.s === 'H' || card.s === 'D';
-    const role = getMyRole(currentGameState);
-    const playable = role === 'attacker' || role === 'defender';
-    return `
-      <button class="card-btn ${isSelected ? 'selected' : ''} ${playable ? 'playable' : ''} ${isRed ? 'red' : 'black'}" data-card="${card.r}${card.s}" onclick="selectCard('${card.r}${card.s}', event)">
-        <span class="card-rank">${card.r}</span>
-        <span class="card-suit">${card.s}</span>
-      </button>
-    `;
-  }).join('');
-}
-
-function selectCard(cardStr, e) {
-  if (e) e.preventDefault();
-  const role = getMyRole(currentGameState);
-  if (role === 'watcher') {
-    showError('Du kannst gerade nicht ziehen.');
-    return;
-  }
-  if (selectedCard === cardStr) {
-    selectedCard = null;
-    selectedCardData = null;
-    document.querySelectorAll('.card-btn.selected').forEach(b => b.classList.remove('selected'));
-  } else {
-    document.querySelectorAll('.card-btn.selected').forEach(b => b.classList.remove('selected'));
-    selectedCard = cardStr;
-    selectedCardData = currentMyHand.find(card => `${card.r}${card.s}` === cardStr) || null;
-    if (e && e.currentTarget) e.currentTarget.classList.add('selected');
-  }
-  updateActionButtons(currentGameState);
-}
-
-function playSelectedCard() {
-  if (!selectedCard || !selectedCardData || !currentTableId || !currentGameState) return;
-  const role = getMyRole(currentGameState);
-  if (role === 'attacker') {
-    socket.emit('durak:playAttack', { tableId: currentTableId, card: selectedCardData });
-  } else if (role === 'defender') {
-    const attackIdx = getPendingAttackIndex(currentGameState.tableCards || []);
-    if (attackIdx < 0) {
-      showError('Es gibt aktuell nichts abzuwehren.');
-      return;
+    let endMessage = "";
+    if (game.player.status === 'won') {
+      endMessage = `🎉 Gewonnen! (+${game.player.bet * 2} Coins)`;
+    } else if (game.player.status === 'tie') {
+      endMessage = `🤝 Unentschieden (Einsatz zurück)`;
+    } else {
+      endMessage = `💥 Verloren! (Dealer gewinnt)`;
     }
-    socket.emit('durak:playDefense', { tableId: currentTableId, card: selectedCardData });
-  } else {
-    showError('Du bist gerade nicht dran.');
-    return;
+    document.getElementById('game-message').textContent = endMessage;
   }
-  selectedCard = null;
-  selectedCardData = null;
-  updateActionButtons(currentGameState);
-}
-
-function takeCards() {
-  if (!currentTableId) return;
-  socket.emit('durak:takeCards', { tableId: currentTableId });
-}
-
-function endRound() {
-  if (!currentTableId) return;
-  socket.emit('durak:pass', { tableId: currentTableId });
-}
-
-function renderPlayersInfo(seats, attackerId, defenderId) {
-  const info = document.getElementById('players-info');
-  info.innerHTML = seats.map((seat) => {
-    let role = '👤 Zuschauer';
-    if (seat.userId === attackerId) role = '🎯 Angreifer';
-    else if (seat.userId === defenderId) role = '🛡️ Verteidiger';
-    return `
-      <div class="player-row">
-        <div class="player-name">${escapeHtml(seat.name)}</div>
-        <div class="role-badge">${role}</div>
-        <div class="player-cards">${seat.handCount}🎴</div>
-      </div>
-    `;
-  }).join('');
 }
 
 function backToLobby() {
-  currentTableId = null;
-  currentGameState = null;
-  selectedCard = null;
-  selectedCardData = null;
-  socket.emit('durak:listTables');
-  showLobby();
+  currentGameId = null;
+  document.getElementById('lobby-view').style.display = 'block';
+  document.getElementById('game-view').style.display = 'none';
 }
 
+// Initialisieren
 connectSocket();
-socket.emit('durak:listTables');
 </script>
 </body>
 </html>
