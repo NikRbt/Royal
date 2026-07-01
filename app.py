@@ -57,8 +57,7 @@ def load_db():
     for k, v in DEFAULT_SETTINGS.items():
         db['settings'].setdefault(k, v)
     db.setdefault('coin_history', [])
-    db.setdefault('durak_games', [])
-    db.setdefault('durak_stats', {})
+    db.setdefault('bj_games', {})
     return db
 
 
